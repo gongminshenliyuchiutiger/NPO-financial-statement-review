@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Template</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <h1>Debug Template Structure</h1>
+    <pre id="output">Loading...</pre>
+    <script>
+        async function run() {
+            try {
+                const response = await fetch('NPO_財務報表檢核範本_v2.xlsx');
+                if (!response.ok) throw new Error("Failed to fetch file");
+                const arrayBuffer = await response.arrayBuffer();
+                const wb = XLSX.read(arrayBuffer, { type: 'array' });
+
+                let output = "";
+                wb.SheetNames.forEach(sheetName => {
+                    output += `=== Sheet: ${sheetName} ===\n`;
+                    const ws = wb.Sheets[sheetName];
+                    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                    if (data.length > 0) {
+                        output += "Headers (Row 1): " + JSON.stringify(data[0]) + "\n";
+                    }
+                    if (data.length > 1) {
+                        output += "Row 2: " + JSON.stringify(data[1]) + "\n";
+                    }
+                    output += "\n";
+                });
+
+                document.getElementById('output').textContent = output;
+                console.log(output);
+            } catch (e) {
+                document.getElementById('output').textContent = "Error: " + e.message;
+                console.error(e);
+            }
+        }
+        run();
+    </script>
+</body>
+
+</html>
