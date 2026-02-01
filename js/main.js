@@ -197,52 +197,130 @@ function downloadExcel() {
 
     const newWb = XLSX.utils.book_new();
 
-    // 1. Process Data Sheets (Income Statement, Balance Sheet) with integrated results
+    // Helper to format percentage
+    const fmtPct = (val) => (typeof val === 'number' ? (val * 100).toFixed(2) + "%" : val);
+
+    // Standard Headers for Template
+    const headers = ['檢核項目', '輸入值A', '輸入值B', '計算結果', '是否異常', '營運意義', '建議追問／修正'];
+
+    // 1. Process Data Sheets
     for (const sheetName of processedWorkbook.SheetNames) {
         const ws = processedWorkbook.Sheets[sheetName];
-        if (sheetName === "收支決算表" || sheetName === "資產負債表") {
-            const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-            const auditData = ws._audit || {};
+        let targetSheetName = "";
+        let isFinancialSheet = false;
+        let isFundSheet = false;
 
-            // Update data rows with audit results
-            for (let r = 1; r < data.length; r++) {
-                const itemName = String(data[r][0] || "").trim();
-                const finding = auditData[itemName];
-
-                // Columns: [Item, Last, Budget, This, Ratio, Status, Signif, Suggest]
-                // Note: Balance sheet index differs slightly but we'll adapt
-                const isBS = (sheetName === "資產負債表");
-                const ratioIdx = isBS ? 3 : 4;
-                const statusIdx = isBS ? 4 : 5;
-                const signIdx = isBS ? 5 : 6;
-                const sugIdx = isBS ? 6 : 7;
-
-                // Calculate ratio if captured during verification
-                // (Logic needs to handle total rows specially)
-                if (data[r]._ratio !== undefined) {
-                    data[r][ratioIdx] = (data[r]._ratio * 100).toFixed(2) + "%";
-                }
-
-                if (finding) {
-                    data[r][statusIdx] = finding.status;
-                    data[r][signIdx] = finding.significance;
-                    data[r][sugIdx] = finding.suggestion;
-                } else if (data[r][0]) {
-                    data[r][statusIdx] = "正常";
-                }
-            }
-            const updatedWs = XLSX.utils.aoa_to_sheet(data);
-            updatedWs['!cols'] = [
-                { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-                { wch: 10 }, { wch: 12 }, { wch: 35 }, { wch: 35 }
-            ];
-            XLSX.utils.book_append_sheet(newWb, updatedWs, sheetName);
+        // Determine Target Sheet Name & Type
+        if (sheetName === "收支決算表") {
+            targetSheetName = "S1_收支決算表_輸入即檢核";
+            isFinancialSheet = true;
+        } else if (sheetName === "資產負債表") {
+            targetSheetName = "S2_資產負債表_輸入即檢核";
+            isFinancialSheet = true;
+        } else if (sheetName.includes("基金") || sheetName.includes("淨值")) {
+            targetSheetName = "S3_基金或淨值變動_分析";
+            isFundSheet = true;
         } else {
+            // Keep other sheets as is
             XLSX.utils.book_append_sheet(newWb, ws, sheetName);
+            continue;
         }
+
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        const auditData = ws._audit || {};
+        const newData = [headers]; // Start with headers
+
+        // Process Rows
+        // Skip original header row (start at r=1)
+        for (let r = 1; r < data.length; r++) {
+            const row = data[r];
+            const itemName = String(row[0] || "").trim();
+            if (!itemName) continue;
+
+            const finding = auditData[itemName];
+
+            let valueA = ""; // Last Year / Start
+            let valueB = ""; // This Year / End
+            let calcResult = "";
+            let status = "正常";
+            let meaning = "";
+            let suggestion = "";
+
+            if (isFinancialSheet) {
+                // S1/S2: Value A = Last Year (Col 1), Value B = This Year (Col 3)
+                // Note: Original Import Format assumed [Name, Last, Budget, This]
+                valueA = row[1];
+                valueB = row[3];
+
+                // If S1 (Income Statement), we might have Budget in Col 2. 
+                // The template doesn't strict have Budget col, but we can append it or ignore.
+                // For direct mapping to template structure, we focus on Last vs This comparison which rules use.
+                // Ratio calculation (This / Total)
+                if (row._ratio !== undefined) {
+                    calcResult = fmtPct(row._ratio);
+                }
+            } else if (isFundSheet) {
+                // S3: Value A = Start (Col 1), Value B = End (Col 2), Change (Col 3)
+                // Assuming standardizer output: [Item, Start, Decrease, Increase, End] ?? 
+                // Wait, standardizer logic for Fund sheet might vary. 
+                // Let's check verifier logic: 
+                // Verifier uses: row[2] (Increase), row[3] (Decrease).
+                // Let's assume input keys: [Item, Start, Increase, Decrease, End] based on common logic 
+                // or [Item, Start, End] ??
+                // Let's stick to what's visible in `verifier.js`:
+                // It reads row[2] (Increase?), row[3] (Decrease?).
+                // Let's safe guard:
+                valueA = row[1]; // Start
+                valueB = row[4] || row[2]; // End (Try col 4 first if standard 5-col, else col 2)
+
+                // Calculate simple change
+                const vA = parseFloat(valueA) || 0;
+                const vB = parseFloat(valueB) || 0;
+                const diff = vB - vA;
+                calcResult = diff !== 0 ? diff : "";
+            }
+
+            // Fill Audit Info
+            if (finding) {
+                status = finding.status === 'OK' ? '正常' : finding.status;
+                meaning = finding.significance || "";
+                suggestion = finding.suggestion || "";
+
+                // Override status text for Template Compatibility if needed
+                // Template uses "OK" or "異常" logic usually, but text is fine.
+            }
+
+            // Construct new row
+            // ['檢核項目', '輸入值A', '輸入值B', '計算結果', '是否異常', '營運意義', '建議追問／修正']
+            const newRow = [
+                itemName,
+                valueA,
+                valueB,
+                calcResult,
+                status,
+                meaning,
+                suggestion
+            ];
+            newData.push(newRow);
+        }
+
+        const newWs = XLSX.utils.aoa_to_sheet(newData);
+
+        // Style Columns (approx width)
+        newWs['!cols'] = [
+            { wch: 25 }, // Item
+            { wch: 15 }, // Val A
+            { wch: 15 }, // Val B
+            { wch: 12 }, // Result
+            { wch: 10 }, // Status
+            { wch: 35 }, // Meaning
+            { wch: 35 }  // Suggestion
+        ];
+
+        XLSX.utils.book_append_sheet(newWb, newWs, targetSheetName);
     }
 
-    // 2. Summary Report Sheet
+    // 2. Summary Report Sheet (Optional, but good to keep as extra analysis)
     if (lastResults && lastResults.length > 0) {
         const reportHeaders = ["報表類別", "檢核規則", "檢核結果", "詳細訊息", "異常意義", "修正建議"];
         const reportData = [reportHeaders];
@@ -251,7 +329,8 @@ function downloadExcel() {
         });
         const reportWs = XLSX.utils.aoa_to_sheet(reportData);
         reportWs['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 45 }, { wch: 35 }, { wch: 35 }];
-        XLSX.utils.book_append_sheet(newWb, reportWs, "稽核彙總");
+        // Rename slightly to differentiate
+        XLSX.utils.book_append_sheet(newWb, reportWs, "全表稽核彙總");
     }
 
     XLSX.writeFile(newWb, `NPO_財務報表稽核報告_${new Date().toISOString().split('T')[0]}.xlsx`);
