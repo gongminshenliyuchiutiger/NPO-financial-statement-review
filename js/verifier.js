@@ -180,7 +180,10 @@ export class FinancialReportVerifier {
             if (name.includes("負債總額") || name === "負債合計") {
                 totalLiabilities = thisYear;
             }
-            if (name.includes("淨值總額") || name.includes("權益總額") || name === "淨值合計" || (name.includes("基金") && name.includes("合計"))) totalNetValue = thisYear;
+            if (name.includes("淨值總額") || name.includes("權益總額") || name === "淨值合計" || (name.includes("基金") && name.includes("合計"))) {
+                totalNetValue = thisYear;
+                this.crossCheck.totalNetValue = totalNetValue;
+            }
 
             if (name.includes("本期餘絀")) {
                 bsSurplus = thisYear;
@@ -329,47 +332,74 @@ export class FinancialReportVerifier {
 
     _verifyFundStatement() {
         const category = "基金及淨值變動表";
-        const rows = this._getRows(category) || this._getRows("基金收支表");
+        // Attempt to find the sheet using varying names
+        let rows = this._getRows(category);
+        if (!rows) rows = this._getRows("基金收支表");
+        if (!rows) rows = this._getRows("淨值變動表");
+
         if (!rows) {
-            // Not strictly error if association has no fund, but helpful info
-            // User prompt: "(社團法人無提撥基金則不需提供)"
+            // Rule: Existence - If BS has Net Assets, FS should exist
+            if (this.crossCheck.bsSurplus !== null || this.crossCheck.fixedAssets > 0) {
+                this.log(category, "報表存在性", "INFO", "未偵測到 '基金及淨值變動表'", "若組織有基金或淨值變動，應編製此表", "請確認是否漏傳或工作表名稱不符");
+            }
             return;
         }
 
-        rows.forEach(row => {
-            const name = String(row[0] || "").trim();
-            const increase = parseFloat(row[2]) || 0;
-            const decrease = parseFloat(row[3]) || 0;
+        // Identify Columns: Item, Start, Inc, Dec, End
+        let totalEnd = 0;
+        let totalStart = 0;
+        let totalInc = 0;
+        let totalDec = 0;
 
-            if (increase > 0 || decrease > 0) {
-                this.log(category, "項目變動", "INFO", `[${name}] 有變動 (增額:${increase}, 減額:${decrease})`, "確認基金或淨值之非經常性變動", "核對是否有董事會會議紀錄或其他合法動資證明");
+        rows.forEach((row, idx) => {
+            const name = String(row[0] || "").trim();
+            if (!name || name === "合計" || name.includes("總額")) return;
+
+            const start = parseFloat(row[1]) || 0;
+            const inc = parseFloat(row[2]) || 0;
+            const dec = parseFloat(row[3]) || 0;
+            const end = parseFloat(row[4]) || 0;
+
+            // Update totals
+            totalStart += start;
+            totalInc += inc;
+            totalDec += dec;
+            totalEnd += end;
+
+            // Rule 1: Math Check (End = Start + Inc - Dec)
+            // Allow small float error
+            const expectedEnd = start + inc - dec;
+            if (Math.abs(end - expectedEnd) > 1) {
+                this.log(category, "試算正確性", "ERROR", `[${name}] 期末(${end}) != 期初(${start}) + 增加(${inc}) - 減少(${dec})`, "變動金額試算不符", "請檢查該項目之增減金額是否正確");
+            }
+
+            // Rule 3: Significant Variation
+            // If Increase or Decrease is significant (> 10% of Start, or absolute large amount)
+            if (start > 0) {
+                if (inc / start > 0.1 && inc > 1000) {
+                    this.log(category, "異常變動", "WARNING", `[${name}] 增加金額佔期初 ${(inc / start * 100).toFixed(0)}%`, "當期有顯著增加", "確認是否有大額捐贈或專案結餘轉入");
+                }
+                if (dec / start > 0.1 && dec > 1000) {
+                    this.log(category, "異常變動", "WARNING", `[${name}] 減少金額佔期初 ${(dec / start * 100).toFixed(0)}%`, "當期有顯著減少", "確認是否有用途不符或資產減損");
+                }
+            } else if (inc > 10000) {
+                // New item large amount
+                this.log(category, "異常變動", "INFO", `[${name}] 新增金額 ${inc}`, "本期新增項目", "確認來源依據");
+            }
+
+            // Rule 4: Negative Balance
+            if (end < 0) {
+                this.log(category, "餘額合理性", "WARNING", `[${name}] 期末餘額為負數 (${end})`, "基金或淨值通常不應為負", "請檢查是否超支或會計分錄錯誤");
             }
         });
 
-        // Rule 9 (New): Fund Cross Check (Fund Statement Ending Balance vs BS Fund & Net Assets)
-        // We need to sum up the "Ending Balance" (Column Index 4, assuming Row format is: Name | Start | Increase | Decrease | End)
-        // Wait, let's check input format. Usually: Item | Previous | Current (Balance Sheet style) OR Item | Start | Inc | Dec | End
-        // Based on verifyFundStatement code: row[2] is Increase, row[3] is Decrease. Implies row[1] Start, row[4] End?
-        // Let's assume standard 5-col: Item(0), Start(1), Inc(2), Dec(3), End(4)
-
-        // However, if the sheet is just comparative (Last Year vs This Year), it might be row[2] as This Year.
-        // Let's look at standard format... The code above uses row[2] and row[3] as Increase/Decrease.
-        // If it is "Fund Statement", usually it has 5 cols.
-
-        let calculatedFundTotal = 0;
-        rows.forEach(row => {
-            const val = parseFloat(row[4]); // Try col 4 first
-            if (!isNaN(val)) calculatedFundTotal += val;
-        });
-
-        // If we found a valid total, compare
-        if (calculatedFundTotal > 0 && this.crossCheck.bsSurplus !== null) {
-            // Note: bsSurplus is "This Period Surplus", strict mapping might be complicated.
-            // Let's cross check with "Net Value Total" from BS if we saved it.
-            // We didn't save Net Value Total in crossCheck yet. Let's rely on user feedback or manual review if this fails often.
-            // For now, let's skip strict auto-cross-check here to avoid false positives without verifying global variable state.
-            // Or better, let's just log the calculated total for visibility.
-            this.log(category, "基金期末總額", "INFO", `基金及淨值期末總合: ${calculatedFundTotal}`, "供人工核對與資產負債表淨值總額是否一致", "-");
+        // Rule 2: Cross Check with BS (Total Net Assets)
+        if (this.crossCheck.totalNetValue !== undefined && this.crossCheck.totalNetValue !== 0) {
+            if (Math.abs(totalEnd - this.crossCheck.totalNetValue) > 10) {
+                this.log(category, "跨表勾稽", "ERROR", `變動表期末合計(${totalEnd}) != 資負表淨值總額(${this.crossCheck.totalNetValue})`, "兩表淨值總額不一致", "請檢查期初餘額引用或本期損益結轉是否正確");
+            } else {
+                this.log(category, "跨表勾稽", "OK", "變動表與資負表淨值一致", "勾稽相符", "-");
+            }
         }
     }
 

@@ -270,22 +270,15 @@ function downloadExcel() {
                     calcResult = fmtPct(row._ratio);
                 }
             } else if (isFundSheet) {
-                // S3: Value A = Start (Col 1), Value B = End (Col 2 or 4)
+                // S3: Value A = Start (Col 1), Value B = End (Col 4)
+                // Assuming standard: Item, Start, Inc, Dec, End
                 valueA = row[1];
-
-                // Determine End Value (Col 4 if exists, else Col 2)
-                if (row.length >= 5) {
-                    valueB = row[4];
-                } else {
-                    valueB = (row[4] !== undefined) ? row[4] : row[2];
-                }
+                valueB = row[4];
 
                 // Calculate simple change
                 const vA = parseFloat(valueA) || 0;
                 const vB = parseFloat(valueB) || 0;
-                const diff = (vB - vA);
-                // Simple difference
-                calcResult = diff;
+                calcResult = (vB - vA);
             }
 
             // Fill Audit Info
@@ -393,6 +386,17 @@ function downloadExcel() {
         ];
 
         XLSX.utils.book_append_sheet(newWb, newWs, targetSheetName);
+    }
+
+    // Force create S3 if it doesn't exist (because input file missed it)
+    if (!newWb.SheetNames.includes("S3_基金或淨值變動_分析")) {
+        const emptyData = [
+            headersS3,
+            ["(未偵測到基金或淨值變動表原始資料)", "", "", "", "提示", "請確認上傳檔案是否包含此表", ""]
+        ];
+        const wsS3 = XLSX.utils.aoa_to_sheet(emptyData);
+        wsS3['!cols'] = [{ wch: 30 }];
+        XLSX.utils.book_append_sheet(newWb, wsS3, "S3_基金或淨值變動_分析");
     }
 
     // 2. Summary Report Sheet (Optional, but good to keep as extra analysis)
