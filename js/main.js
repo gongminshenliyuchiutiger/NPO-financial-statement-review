@@ -252,10 +252,18 @@ function downloadExcel() {
             let suggestion = "";
 
             if (isFinancialSheet) {
-                // S1/S2: Value A = Last Year (Col 1), Value B = This Year (Col 3)
-                // Note: Original Import Format assumed [Name, Last, Budget, This]
+                // S1/S2: Value A = Last Year (Col 1)
+                // Note: Original Import Format assumed [Name, Last, Budget, This] for IS
+                // But [Name, Last, This, Note] for BS
                 valueA = row[1];
-                valueB = row[3];
+
+                if (sheetName === "收支決算表") {
+                    valueB = row[3]; // This Year is Col 3 (0,1,2,3)
+                } else if (sheetName === "資產負債表") {
+                    valueB = row[2]; // This Year is Col 2 (0,1,2,3)
+                } else {
+                    valueB = row[3]; // Fallback
+                }
 
                 // Ratio calculation (This / Total)
                 if (row._ratio !== undefined) {

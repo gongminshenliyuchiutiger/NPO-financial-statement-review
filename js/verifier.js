@@ -158,8 +158,13 @@ export class FinancialReportVerifier {
             const lastYear = parseFloat(row[1]) || 0;
             const thisYear = parseFloat(row[2]) || 0;
 
-            if (name.includes("資產總額") || name === "資產合計") totalAssets = thisYear;
-            if (name.includes("負債總額") || name === "負債合計") totalLiabilities = thisYear;
+            if (name.includes("資產總額") || name === "資產合計") {
+                totalAssets = thisYear;
+                // Capture index to define Asset Section
+            }
+            if (name.includes("負債總額") || name === "負債合計") {
+                totalLiabilities = thisYear;
+            }
             if (name.includes("淨值總額") || name.includes("權益總額") || name === "淨值合計" || (name.includes("基金") && name.includes("合計"))) totalNetValue = thisYear;
 
             if (name.includes("本期餘絀")) {
@@ -177,10 +182,6 @@ export class FinancialReportVerifier {
                 this.crossCheck.fixedAssets += thisYear;
             }
 
-            // Sum Check logic
-            if (name.includes("資產") && !name.includes("總額") && !name.includes("合計")) manualSumAssets += thisYear;
-            if (name.includes("負債") && !name.includes("總額") && !name.includes("合計")) manualSumLiab += thisYear;
-
             // Rule 6: Debt Composition (Look for specific items)
             if (["銀行借款", "暫收款", "暫付款", "短期借款", "應付票據"].some(k => name.includes(k))) {
                 if (thisYear !== 0) {
@@ -188,6 +189,51 @@ export class FinancialReportVerifier {
                 }
             }
         });
+
+        // REVISED SUM CHECK LOGIC (Position based)
+        // Find indices of delimiters
+        let idxTotalAssets = rows.findIndex(r => String(r[0] || "").includes("資產總額") || String(r[0] || "") === "資產合計");
+        let idxTotalLiabilities = rows.findIndex(r => String(r[0] || "").includes("負債總額") || String(r[0] || "") === "負債合計");
+
+        // If not found, fallback to name-based or skip
+        if (idxTotalAssets !== -1) {
+            // Sum Assets: 0 to idxTotalAssets
+            for (let i = 0; i < idxTotalAssets; i++) {
+                const row = rows[i];
+                const name = String(row[0] || "").trim();
+                const val = parseFloat(row[2]) || 0;
+                // Exclude subtotals
+                if (!name.includes("合計") && !name.includes("總額") && !name.includes("小計")) {
+                    manualSumAssets += val;
+                }
+            }
+        } else {
+            // Fallback Logic
+            rows.forEach(row => {
+                const name = String(row[0] || "").trim();
+                const val = parseFloat(row[2]) || 0;
+                if (name.includes("資產") && !name.includes("總額") && !name.includes("合計")) manualSumAssets += val;
+            });
+        }
+
+        if (idxTotalLiabilities !== -1 && idxTotalAssets !== -1) {
+            // Sum Liab: idxTotalAssets + 1 to idxTotalLiabilities
+            for (let i = idxTotalAssets + 1; i < idxTotalLiabilities; i++) {
+                const row = rows[i];
+                const name = String(row[0] || "").trim();
+                const val = parseFloat(row[2]) || 0;
+                if (!name.includes("合計") && !name.includes("總額") && !name.includes("小計")) {
+                    manualSumLiab += val;
+                }
+            }
+        } else {
+            // Fallback
+            rows.forEach(row => {
+                const name = String(row[0] || "").trim();
+                const val = parseFloat(row[2]) || 0;
+                if (name.includes("負債") && !name.includes("總額") && !name.includes("合計")) manualSumLiab += val;
+            });
+        }
 
         // Rule 1: Sum Check (Assets & Liab)
         if (totalAssets > 0 && Math.abs(totalAssets - manualSumAssets) > 100) {
