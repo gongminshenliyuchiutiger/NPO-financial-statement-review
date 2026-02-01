@@ -146,7 +146,8 @@ export class FinancialReportVerifier {
             manualSumIncome,
             totalExpense,
             manualSumExpense,
-            surplus
+            surplus,
+            crossCheckIncomeSurplus: this.crossCheck.incomeSurplus
         };
     }
 
@@ -299,6 +300,7 @@ export class FinancialReportVerifier {
         // Rule 8 (New): Liquidity Ratio (Current Assets / Current Liabilities > 1)
         if (["流動資產", "流動資產合計", "流動資產總額"].some(k => rows.find(r => (r[0] || "").includes(k)))) {
             // Find Current Assets and Current Liabilities
+            // Find Current Assets and Current Liabilities
             let currentAssets = 0;
             let currentLiabilities = 0;
 
@@ -308,6 +310,10 @@ export class FinancialReportVerifier {
                 if (name === "流動資產" || name === "流動資產合計" || name === "流動資產總額") currentAssets = val;
                 if (name === "流動負債" || name === "流動負債合計" || name === "流動負債總額") currentLiabilities = val;
             });
+
+            // Store for export
+            this.metrics['資產負債表'].currentAssets = currentAssets;
+            this.metrics['資產負債表'].currentLiabilities = currentLiabilities;
 
             if (currentLiabilities > 0) {
                 const liqRatio = currentAssets / currentLiabilities;

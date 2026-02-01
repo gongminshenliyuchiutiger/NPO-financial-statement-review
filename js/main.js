@@ -331,18 +331,41 @@ function downloadExcel() {
                 }
                 return [title, "", "", calc, status, meaning, suggest];
             };
-
+            // Define rows based on Sheet Type
             const dashboard = [];
+            const metrics = lastResults.metrics || {};
+
             if (targetType === "S1") {
-                dashboard.push(createSumRow("收入加總正確", "合計正確性"));
-                dashboard.push(createSumRow("支出加總正確", "合計正確性"));
-                dashboard.push(createSumRow("收支平衡", "報表平衡"));
-                dashboard.push(createSumRow("餘絀比例", "結餘合理性"));
+                const m = metrics['收支決算表'] || {};
+                // 1. Sum Check: Reported Total vs Manual Sum
+                dashboard.push(createSumRow("收入加總正確", "合計正確性", m.totalIncome, m.manualSumIncome));
+                dashboard.push(createSumRow("支出加總正確", "合計正確性", m.totalExpense, m.manualSumExpense));
+
+                // 2. Balance: Income vs Expense + Surplus
+                const calculatedBalance = (m.totalExpense || 0) + (m.surplus || 0);
+                dashboard.push(createSumRow("收支平衡", "報表平衡", m.totalIncome, calculatedBalance));
+
+                // 3. Surplus Ratio: Surplus vs Income
+                dashboard.push(createSumRow("餘絀比例", "結餘合理性", m.surplus, m.totalIncome));
+
             } else if (targetType === "S2") {
-                dashboard.push(createSumRow("資產負債平衡", "報表平衡"));
-                dashboard.push(createSumRow("負債比", "財務風險"));
-                dashboard.push(createSumRow("本期餘絀勾稽", "跨表勾稽"));
-                dashboard.push(createSumRow("流動比率", "流動比率"));
+                const m = metrics['資產負債表'] || {};
+                const mIS = metrics['收支決算表'] || {};
+
+                // 1. Balance Check: Assets vs Liab + Equity
+                const equity = (m.totalNetValue || 0); // Total Net Value
+                const rightSide = (m.totalLiabilities || 0) + equity;
+                dashboard.push(createSumRow("資產負債平衡", "報表平衡", m.totalAssets, rightSide));
+
+                // 2. Debt Ratio: Liabilities vs Assets
+                dashboard.push(createSumRow("負債比", "財務風險", m.totalLiabilities, m.totalAssets));
+
+                // 3. Surplus Cross Check: BS Surplus vs IS Surplus
+                const isSurplus = mIS.crossCheckIncomeSurplus || mIS.surplus;
+                dashboard.push(createSumRow("本期餘絀勾稽", "跨表勾稽", m.bsSurplus, isSurplus));
+
+                // 4. Liquidity Ratio: Current Assets vs Current Liab
+                dashboard.push(createSumRow("流動比率", "流動比率", m.currentAssets, m.currentLiabilities));
             }
             if (dashboard.length > 0) {
                 newData.splice(1, 0, ...dashboard, ["", "", "", "", "", "", ""]);
