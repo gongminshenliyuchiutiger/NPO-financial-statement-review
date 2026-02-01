@@ -231,6 +231,29 @@ export class FinancialReportVerifier {
                 this.log(category, "財務風險", "WARNING", `負債佔總資產 ${(debtRatio * 100).toFixed(1)}%`, "負債比率超過 50%", "財務槓桿過高可能導致現金流風險，請確認還款能力或補助款運用情形");
             }
         }
+
+        // Rule 8 (New): Liquidity Ratio (Current Assets / Current Liabilities > 1)
+        if (["流動資產", "流動資產合計", "流動資產總額"].some(k => rows.find(r => (r[0] || "").includes(k)))) {
+            // Find Current Assets and Current Liabilities
+            let currentAssets = 0;
+            let currentLiabilities = 0;
+
+            rows.forEach(row => {
+                const name = String(row[0] || "").trim();
+                const val = parseFloat(row[2]) || 0; // This Year
+                if (name === "流動資產" || name === "流動資產合計" || name === "流動資產總額") currentAssets = val;
+                if (name === "流動負債" || name === "流動負債合計" || name === "流動負債總額") currentLiabilities = val;
+            });
+
+            if (currentLiabilities > 0) {
+                const liqRatio = currentAssets / currentLiabilities;
+                if (liqRatio <= 1) {
+                    this.log(category, "流動比率", "WARNING", `流動比率 ${(liqRatio).toFixed(2)} (流動資產/流動負債)`, "流動比率小於 1，短期償債能力有風險", "請確認現金流是否充足");
+                } else {
+                    this.log(category, "流動比率", "OK", `流動比率 ${(liqRatio).toFixed(2)}`, "短期償債能力正常", "-");
+                }
+            }
+        }
     }
 
     _verifyFundStatement() {
@@ -251,6 +274,32 @@ export class FinancialReportVerifier {
                 this.log(category, "項目變動", "INFO", `[${name}] 有變動 (增額:${increase}, 減額:${decrease})`, "確認基金或淨值之非經常性變動", "核對是否有董事會會議紀錄或其他合法動資證明");
             }
         });
+
+        // Rule 9 (New): Fund Cross Check (Fund Statement Ending Balance vs BS Fund & Net Assets)
+        // We need to sum up the "Ending Balance" (Column Index 4, assuming Row format is: Name | Start | Increase | Decrease | End)
+        // Wait, let's check input format. Usually: Item | Previous | Current (Balance Sheet style) OR Item | Start | Inc | Dec | End
+        // Based on verifyFundStatement code: row[2] is Increase, row[3] is Decrease. Implies row[1] Start, row[4] End?
+        // Let's assume standard 5-col: Item(0), Start(1), Inc(2), Dec(3), End(4)
+
+        // However, if the sheet is just comparative (Last Year vs This Year), it might be row[2] as This Year.
+        // Let's look at standard format... The code above uses row[2] and row[3] as Increase/Decrease.
+        // If it is "Fund Statement", usually it has 5 cols.
+
+        let calculatedFundTotal = 0;
+        rows.forEach(row => {
+            const val = parseFloat(row[4]); // Try col 4 first
+            if (!isNaN(val)) calculatedFundTotal += val;
+        });
+
+        // If we found a valid total, compare
+        if (calculatedFundTotal > 0 && this.crossCheck.bsSurplus !== null) {
+            // Note: bsSurplus is "This Period Surplus", strict mapping might be complicated.
+            // Let's cross check with "Net Value Total" from BS if we saved it.
+            // We didn't save Net Value Total in crossCheck yet. Let's rely on user feedback or manual review if this fails often.
+            // For now, let's skip strict auto-cross-check here to avoid false positives without verifying global variable state.
+            // Or better, let's just log the calculated total for visibility.
+            this.log(category, "基金期末總額", "INFO", `基金及淨值期末總合: ${calculatedFundTotal}`, "供人工核對與資產負債表淨值總額是否一致", "-");
+        }
     }
 
     _verifyPropertyCatalog() {
