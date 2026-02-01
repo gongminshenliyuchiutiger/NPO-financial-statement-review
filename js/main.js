@@ -55,6 +55,7 @@ dropZone.addEventListener('drop', (e) => {
     handleFileSelect(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+verifyBtn.addEventListener('click', startVerification);
 
 let lastResults = []; // Store results for export functionality
 
