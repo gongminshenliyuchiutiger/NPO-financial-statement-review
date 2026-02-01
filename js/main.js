@@ -361,11 +361,62 @@ function downloadExcel() {
 
     // Force create S3 if it doesn't exist
     if (!sheetBuffer.S3) {
-        const emptyData = [
-            headersS3,
-            ["(未偵測到基金或淨值變動表原始資料)", "", "", "", "提示", "請確認上傳檔案是否包含此表", ""]
-        ];
-        const wsS3 = XLSX.utils.aoa_to_sheet(emptyData);
+        let s3Data = null;
+
+        // Fallback: Try to generate from Balance Sheet
+        // Find S2 sheet buffer or raw sheet
+        // We might have processed S2 already in buffer, or can read from processedWorkbook
+        const bsSheet = processedWorkbook.Sheets["資產負債表"];
+        if (bsSheet) {
+            const rows = XLSX.utils.sheet_to_json(bsSheet, { header: 1 });
+            const newRows = [];
+            rows.forEach(row => {
+                const name = String(row[0] || "").trim();
+                // Filter for Fund/NetValue items
+                if ((name.includes("基金") || name.includes("淨值") || name.includes("餘絀") || name.includes("權益")) && !name.includes("負債") && !name.includes("資產")) {
+                    const start = parseFloat(row[1]) || 0; // Col 1 Last Year
+                    const end = parseFloat(row[2]) || 0;   // Col 2 This Year
+
+                    // Construct S3 Row: [Item, Start, End, Diff, Status, Meaning, Suggestion]
+                    // We don't have detailed Inc/Dec, just Diff.
+                    const diff = end - start;
+
+                    // Check if there are any specific audit findings for this item from Verifier (S3 category)
+                    // Verifier runs on "基金及淨值變動表" category.
+                    // The fallback logic in verifier used these same names.
+                    // But verifier stores results in `lastResults`.
+                    // We can look up findings by Item Name.
+
+                    // Finding might be under "基金及淨值變動表"
+                    const finding = lastResults.find(r => r.category === "基金及淨值變動表" && r.targetItem === name) ||
+                        (bsSheet._audit ? bsSheet._audit[name] : null); // Fallback to BS audit if any? No, separate category.
+
+                    let status = "正常";
+                    let meaning = "";
+                    let suggest = "";
+                    if (finding) {
+                        status = finding.status === 'OK' ? '正常' : finding.status;
+                        meaning = finding.significance || "";
+                        suggest = finding.suggestion || "";
+                    }
+
+                    newRows.push([name, start, end, diff, status, meaning, suggest]);
+                }
+            });
+
+            if (newRows.length > 0) {
+                s3Data = [headersS3, ...newRows];
+            }
+        }
+
+        if (!s3Data) {
+            s3Data = [
+                headersS3,
+                ["(未偵測到基金或淨值變動表原始資料)", "", "", "", "提示", "請確認上傳檔案是否包含此表", ""]
+            ];
+        }
+
+        const wsS3 = XLSX.utils.aoa_to_sheet(s3Data);
         wsS3['!cols'] = [{ wch: 30 }];
         sheetBuffer.S3 = wsS3;
     }

@@ -14,7 +14,7 @@ export class FinancialReportVerifier {
     }
 
     log(category, rule, status, message, significance = "", suggestion = "", targetItem = null) {
-        const finding = { category, rule, status, message, significance, suggestion };
+        const finding = { category, rule, status, message, significance, suggestion, targetItem };
         this.results.push(finding);
 
         // Attach to workbook row if possible
@@ -69,8 +69,8 @@ export class FinancialReportVerifier {
             const budget = parseFloat(row[2]) || 0;
             const thisYear = parseFloat(row[3]) || 0;
 
-            if (name.includes("收入總額") || name === "收入合計") totalIncome = thisYear;
-            if (name.includes("支出總額") || name === "支出合計") totalExpense = thisYear;
+            if (name.includes("收入") && (name.includes("總額") || name.includes("合計") || name.includes("總計"))) totalIncome = thisYear;
+            if (name.includes("支出") && (name.includes("總額") || name.includes("合計") || name.includes("總計"))) totalExpense = thisYear;
             if (name.includes("本期餘絀")) {
                 surplus = thisYear;
                 this.crossCheck.incomeSurplus = surplus;
@@ -180,12 +180,12 @@ export class FinancialReportVerifier {
             if (name.includes("負債總額") || name === "負債合計") {
                 totalLiabilities = thisYear;
             }
-            if (name.includes("淨值總額") || name.includes("權益總額") || name === "淨值合計" || (name.includes("基金") && name.includes("合計"))) {
+            if ((name.includes("淨值總額") || name.includes("權益總額") || name.includes("淨值合計") || (name.includes("基金") && name.includes("合計"))) && !name.includes("負債") && !name.includes("資產")) {
                 totalNetValue = thisYear;
                 this.crossCheck.totalNetValue = totalNetValue;
             }
 
-            if (name.includes("本期餘絀")) {
+            if (name.includes("本期餘絀") || name.includes("本期損益") || name.includes("本期結餘")) {
                 bsSurplus = thisYear;
                 this.crossCheck.bsSurplus = bsSurplus;
             }
@@ -338,6 +338,37 @@ export class FinancialReportVerifier {
         if (!rows) rows = this._getRows("淨值變動表");
 
         if (!rows) {
+            // S3 Logic Fallback: If S3 sheet missing, try to extract Fund/NetValue items from Balance Sheet
+            // We can look at BS rows if available
+            const bsRows = this._getRows("資產負債表");
+            if (bsRows) {
+                rows = [];
+                bsRows.forEach(row => {
+                    const name = String(row[0] || "").trim();
+                    if (name.includes("基金") || name.includes("淨值") || name.includes("餘絀") || name.includes("權益")) {
+                        if (!name.includes("負債") && !name.includes("資產")) {
+                            // Construct pseudo-S3 row: [Name, LastYear(Start), Inc?, Dec?, ThisYear(End)]
+                            // We only have Start (Last) and End (This). We don't know Inc/Dec.
+                            // We can put: Start, 0, 0, End.
+                            // But verification logic checks Math: End = Start + Inc - Dec.
+                            // If we put 0, 0, then End must equal Start, which is wrong.
+                            // So we construct: Start, (Diff>0?Diff:0), (Diff<0?-Diff:0), End.
+                            const start = parseFloat(row[1]) || 0;
+                            const end = parseFloat(row[2]) || 0;
+                            const diff = end - start;
+                            const inc = diff > 0 ? diff : 0;
+                            const dec = diff < 0 ? -diff : 0;
+                            rows.push([name, start, inc, dec, end]);
+                        }
+                    }
+                });
+                if (rows.length > 0) {
+                    this.log(category, "資料來源", "INFO", "使用資產負債表資料進行變動分析", "原始檔案無專屬變動表，改以資產負債表對應科目分析", "-");
+                }
+            }
+        }
+
+        if (!rows || rows.length === 0) {
             // Rule: Existence - If BS has Net Assets, FS should exist
             if (this.crossCheck.bsSurplus !== null || this.crossCheck.fixedAssets > 0) {
                 this.log(category, "報表存在性", "INFO", "未偵測到 '基金及淨值變動表'", "若組織有基金或淨值變動，應編製此表", "請確認是否漏傳或工作表名稱不符");
