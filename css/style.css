@@ -309,7 +309,7 @@ footer {
 }
 
 .modal.show {
-    display: flex;
+    display: flex !important;
 }
 
 .modal-content {

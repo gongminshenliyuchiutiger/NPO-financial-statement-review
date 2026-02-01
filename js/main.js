@@ -15,24 +15,32 @@ let selectedFile = null;
 let processedWorkbook = null;
 
 // Modal Logic
-const modal = document.getElementById('helpModal');
-const openBtn = document.getElementById('openHelpModal');
-const closeBtn = document.querySelector('.close-modal');
+function setupModal() {
+    const modal = document.getElementById('helpModal');
+    const openBtn = document.getElementById('openHelpModal');
+    const closeBtn = document.querySelector('.close-modal');
 
-if (openBtn && modal && closeBtn) {
-    openBtn.onclick = (e) => {
-        e.preventDefault();
-        modal.classList.add('show');
-    }
-    closeBtn.onclick = () => {
-        modal.classList.remove('show');
-    }
-    window.onclick = (e) => {
-        if (e.target == modal) {
+    if (openBtn && modal && closeBtn) {
+        console.log("Modal initialized");
+        openBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log("Open clicked");
+            modal.classList.add('show');
+        });
+        closeBtn.addEventListener('click', () => {
+            console.log("Close clicked");
             modal.classList.remove('show');
-        }
+        });
+        window.addEventListener('click', (e) => {
+            if (e.target == modal) {
+                modal.classList.remove('show');
+            }
+        });
+    } else {
+        console.warn("Modal elements not found:", { openBtn, modal, closeBtn });
     }
 }
+setupModal();
 
 // Event Listeners
 dropZone.addEventListener('click', () => fileInput.click());
