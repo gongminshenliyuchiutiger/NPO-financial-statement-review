@@ -101,6 +101,26 @@ header p {
     margin-top: 10px;
 }
 
+.btn-manual {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+
+.btn-manual:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-main);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
 /* Main Container */
 .container {
     width: 90%;
@@ -313,8 +333,8 @@ footer {
 }
 
 .modal-content {
-    background-color: #fff;
-    color: #333;
+    background-color: rgba(20, 20, 35, 0.95);
+    color: var(--text-main);
     padding: 30px;
     border-radius: 12px;
     width: 90%;
@@ -322,6 +342,8 @@ footer {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     position: relative;
     animation: modalFadeIn 0.3s;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
 }
 
 @keyframes modalFadeIn {
@@ -337,7 +359,7 @@ footer {
 }
 
 .close-modal {
-    color: #aaa;
+    color: var(--text-muted);
     float: right;
     font-size: 28px;
     font-weight: bold;
@@ -347,20 +369,59 @@ footer {
 
 .close-modal:hover,
 .close-modal:focus {
-    color: #000;
+    color: var(--text-main);
     text-decoration: none;
     cursor: pointer;
 }
 
 .warning-box {
-    background-color: #fff8e1;
-    /* Light yellow */
-    color: #856404;
-    border: 1px solid #ffeeba;
+    background-color: rgba(245, 166, 35, 0.1);
+    color: var(--warning);
+    border: 1px solid rgba(245, 166, 35, 0.3);
     padding: 15px;
     border-radius: 8px;
     margin-top: 20px;
-    font-size: 0.9rem;
+}
+
+/* Manual Modal Specifics */
+.manual-content {
+    max-width: 800px;
+    /* Wider than normal modal */
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.manual-section {
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.manual-section:last-child {
+    border-bottom: none;
+}
+
+.manual-section h3 {
+    color: var(--primary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+}
+
+.manual-section ul {
+    padding-left: 20px;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+
+.manual-section h3 i {
+    margin-right: 10px;
+    color: var(--accent);
+}
+
+.manual-section li {
+    margin-bottom: 5px;
 }
 
 /* Mascot Styles */
