@@ -204,30 +204,36 @@ function downloadExcel() {
     const headersS1S2 = ['檢核項目', '輸入值A', '輸入值B', '計算結果', '是否異常', '營運意義', '建議追問／修正'];
     const headersS3 = ['項目', '期初', '期末', '變動數', '判斷', '營運意義', '建議'];
 
-    // 1. Process Data Sheets
+    // 1. Process Data Sheets and Buffer Them
+    const sheetBuffer = {
+        S1: null,
+        S2: null,
+        S3: null,
+        others: []
+    };
+
+    const s1Name = "S1_收支決算表_輸入即檢核";
+    const s2Name = "S2_資產負債表_輸入即檢核";
+    const s3Name = "S3_基金或淨值變動_分析";
+
     for (const sheetName of processedWorkbook.SheetNames) {
         const ws = processedWorkbook.Sheets[sheetName];
-        let targetSheetName = "";
-        let isFinancialSheet = false;
-        let isFundSheet = false;
         let currentHeaders = [];
+        let targetType = ""; // S1, S2, S3
 
         // Determine Target Sheet Name & Type
         if (sheetName === "收支決算表") {
-            targetSheetName = "S1_收支決算表_輸入即檢核";
-            isFinancialSheet = true;
+            targetType = "S1";
             currentHeaders = headersS1S2;
         } else if (sheetName === "資產負債表") {
-            targetSheetName = "S2_資產負債表_輸入即檢核";
-            isFinancialSheet = true;
+            targetType = "S2";
             currentHeaders = headersS1S2;
         } else if (sheetName.includes("基金") || sheetName.includes("淨值")) {
-            targetSheetName = "S3_基金或淨值變動_分析";
-            isFundSheet = true;
+            targetType = "S3";
             currentHeaders = headersS3;
         } else {
-            // Keep other sheets as is
-            XLSX.utils.book_append_sheet(newWb, ws, sheetName);
+            // Keep other sheets as is (Buffer them)
+            sheetBuffer.others.push({ name: sheetName, ws: ws });
             continue;
         }
 
@@ -251,10 +257,8 @@ function downloadExcel() {
             let meaning = "";
             let suggestion = "";
 
-            if (isFinancialSheet) {
+            if (targetType === "S1" || targetType === "S2") {
                 // S1/S2: Value A = Last Year (Col 1)
-                // Note: Original Import Format assumed [Name, Last, Budget, This] for IS
-                // But [Name, Last, This, Note] for BS
                 valueA = row[1];
 
                 if (sheetName === "收支決算表") {
@@ -269,7 +273,7 @@ function downloadExcel() {
                 if (row._ratio !== undefined) {
                     calcResult = fmtPct(row._ratio);
                 }
-            } else if (isFundSheet) {
+            } else if (targetType === "S3") {
                 // S3: Value A = Start (Col 1), Value B = End (Col 4)
                 // Assuming standard: Item, Start, Inc, Dec, End
                 valueA = row[1];
@@ -286,9 +290,6 @@ function downloadExcel() {
                 status = finding.status === 'OK' ? '正常' : finding.status;
                 meaning = finding.significance || "";
                 suggestion = finding.suggestion || "";
-
-                // Override status text for Template Compatibility if needed
-                // Template uses "OK" or "異常" logic usually, but text is fine.
             }
 
             // Construct new row
@@ -305,101 +306,81 @@ function downloadExcel() {
             newData.push(newRow);
         }
 
-        // --- NEW LOGIC: Prepend Summary Checks (Dashboard) to match Template ---
-        if (isFinancialSheet) {
+        // --- Prepend Summary Checks (Dashboard) ---
+        if (targetType === "S1" || targetType === "S2") {
             const summaryRows = [];
-
-            // Helper to find result
+            // Helper to find result logic...
             const findResult = (ruleNamePartial) => {
                 return lastResults.find(r => r.category === sheetName && r.rule.includes(ruleNamePartial));
             };
-
-            // Helper to create Summary Row
-            const createSumRow = (title, ruleKey, valA = "", valB = "") => {
+            const createSumRow = (title, ruleKey) => {
                 const res = findResult(ruleKey);
-                // If result found, use its status/message. If not, assume OK or N/A
-                // However, verifier only pushes logs for Checks it ran.
-                // For "Sum Check", verifier logs ERROR if mismatch.
-
                 let status = "正常";
                 let calc = "TRUE";
                 let meaning = "";
                 let suggest = "";
-
                 if (res) {
                     status = res.status === 'OK' ? '正常' : res.status;
                     if (res.status !== 'OK') {
-                        calc = "FALSE"; // Or specific value if available
+                        calc = "FALSE";
                         meaning = res.significance;
                         suggest = res.suggestion;
-                    } else if (res.message) {
-                        // Sometimes we log OK messages
-                        calc = "TRUE"; // Or extracted value
                     }
                 } else {
-                    // Logic didn't trigger? Could be OK or Skipped.
-                    // For "Sum Check", if no error logged, usually implies OK in our verifier logic?
-                    // Actually, verifier.js ONLY logs Sum Check if it fails (lines 116, 119 for IS; 193 for BS).
-                    // WAIT: It DOES log "OK" for Balance Check (line 126, 201).
-                    // For Sum Check, it only logs ERROR. So if not found, it is OK.
                     if (ruleKey === "合計正確性") status = "正常";
                 }
-
-                return [title, valA, valB, calc, status, meaning, suggest];
+                return [title, "", "", calc, status, meaning, suggest];
             };
 
-            // Define rows based on Sheet Type
             const dashboard = [];
-            if (sheetName === "收支決算表") {
-                dashboard.push(createSumRow("收入加總正確", "合計正確性")); // Logic: If no error log found, assume OK
+            if (targetType === "S1") {
+                dashboard.push(createSumRow("收入加總正確", "合計正確性"));
                 dashboard.push(createSumRow("支出加總正確", "合計正確性"));
                 dashboard.push(createSumRow("收支平衡", "報表平衡"));
                 dashboard.push(createSumRow("餘絀比例", "結餘合理性"));
-            } else if (sheetName === "資產負債表") {
+            } else if (targetType === "S2") {
                 dashboard.push(createSumRow("資產負債平衡", "報表平衡"));
                 dashboard.push(createSumRow("負債比", "財務風險"));
                 dashboard.push(createSumRow("本期餘絀勾稽", "跨表勾稽"));
                 dashboard.push(createSumRow("流動比率", "流動比率"));
-                // Add "Fund Cross Check" if needed, usually S2
             }
-
-            // Insert Dashboard rows at the beginning (after header)
-            // newData[0] is Header. Insert at index 1.
             if (dashboard.length > 0) {
-                // Add an empty divider row after dashboard? Template doesn't seem to have one but looks cleaner.
-                // Template just lists them at top.
-                newData.splice(1, 0, ...dashboard, ["", "", "", "", "", "", ""]); // Add separator row
+                newData.splice(1, 0, ...dashboard, ["", "", "", "", "", "", ""]);
             }
         }
 
         const newWs = XLSX.utils.aoa_to_sheet(newData);
-
         // Style Columns (approx width)
         newWs['!cols'] = [
-            { wch: 25 }, // Item
-            { wch: 15 }, // Val A
-            { wch: 15 }, // Val B
-            { wch: 12 }, // Result
-            { wch: 10 }, // Status
-            { wch: 35 }, // Meaning
-            { wch: 35 }  // Suggestion
+            { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 35 }, { wch: 35 }
         ];
 
-        XLSX.utils.book_append_sheet(newWb, newWs, targetSheetName);
+        // Store in Buffer
+        sheetBuffer[targetType] = newWs;
     }
 
-    // Force create S3 if it doesn't exist (because input file missed it)
-    if (!newWb.SheetNames.includes("S3_基金或淨值變動_分析")) {
+    // Force create S3 if it doesn't exist
+    if (!sheetBuffer.S3) {
         const emptyData = [
             headersS3,
             ["(未偵測到基金或淨值變動表原始資料)", "", "", "", "提示", "請確認上傳檔案是否包含此表", ""]
         ];
         const wsS3 = XLSX.utils.aoa_to_sheet(emptyData);
         wsS3['!cols'] = [{ wch: 30 }];
-        XLSX.utils.book_append_sheet(newWb, wsS3, "S3_基金或淨值變動_分析");
+        sheetBuffer.S3 = wsS3;
     }
 
-    // 2. Summary Report Sheet (Optional, but good to keep as extra analysis)
+    // 2. Append Sheets in Specific Order
+    if (sheetBuffer.S1) XLSX.utils.book_append_sheet(newWb, sheetBuffer.S1, s1Name);
+    if (sheetBuffer.S2) XLSX.utils.book_append_sheet(newWb, sheetBuffer.S2, s2Name);
+    if (sheetBuffer.S3) XLSX.utils.book_append_sheet(newWb, sheetBuffer.S3, s3Name);
+
+    // Append Others (e.g., Property Catalog)
+    sheetBuffer.others.forEach(item => {
+        XLSX.utils.book_append_sheet(newWb, item.ws, item.name);
+    });
+
+    // 3. Summary Report Sheet
     if (lastResults && lastResults.length > 0) {
         const reportHeaders = ["報表類別", "檢核規則", "檢核結果", "詳細訊息", "異常意義", "修正建議"];
         const reportData = [reportHeaders];
@@ -408,7 +389,6 @@ function downloadExcel() {
         });
         const reportWs = XLSX.utils.aoa_to_sheet(reportData);
         reportWs['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 45 }, { wch: 35 }, { wch: 35 }];
-        // Rename slightly to differentiate
         XLSX.utils.book_append_sheet(newWb, reportWs, "全表稽核彙總");
     }
 
