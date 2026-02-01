@@ -195,40 +195,63 @@ function downloadTemplate() {
 function downloadExcel() {
     if (!processedWorkbook) return;
 
-    // 1. Create a deep copy of the processed workbook (so we don't modify original if viewed again)
-    // SheetJS structures are complex, simple way is to create NEW workbook and append
     const newWb = XLSX.utils.book_new();
 
-    // Copy existing sheets (Standardized Data)
+    // 1. Process Data Sheets (Income Statement, Balance Sheet) with integrated results
     for (const sheetName of processedWorkbook.SheetNames) {
-        const sheet = processedWorkbook.Sheets[sheetName];
-        XLSX.utils.book_append_sheet(newWb, sheet, sheetName);
+        const ws = processedWorkbook.Sheets[sheetName];
+        if (sheetName === "收支決算表" || sheetName === "資產負債表") {
+            const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+            const auditData = ws._audit || {};
+
+            // Update data rows with audit results
+            for (let r = 1; r < data.length; r++) {
+                const itemName = String(data[r][0] || "").trim();
+                const finding = auditData[itemName];
+
+                // Columns: [Item, Last, Budget, This, Ratio, Status, Signif, Suggest]
+                // Note: Balance sheet index differs slightly but we'll adapt
+                const isBS = (sheetName === "資產負債表");
+                const ratioIdx = isBS ? 3 : 4;
+                const statusIdx = isBS ? 4 : 5;
+                const signIdx = isBS ? 5 : 6;
+                const sugIdx = isBS ? 6 : 7;
+
+                // Calculate ratio if captured during verification
+                // (Logic needs to handle total rows specially)
+                if (data[r]._ratio !== undefined) {
+                    data[r][ratioIdx] = (data[r]._ratio * 100).toFixed(2) + "%";
+                }
+
+                if (finding) {
+                    data[r][statusIdx] = finding.status;
+                    data[r][signIdx] = finding.significance;
+                    data[r][sugIdx] = finding.suggestion;
+                } else if (data[r][0]) {
+                    data[r][statusIdx] = "正常";
+                }
+            }
+            const updatedWs = XLSX.utils.aoa_to_sheet(data);
+            updatedWs['!cols'] = [
+                { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+                { wch: 10 }, { wch: 12 }, { wch: 35 }, { wch: 35 }
+            ];
+            XLSX.utils.book_append_sheet(newWb, updatedWs, sheetName);
+        } else {
+            XLSX.utils.book_append_sheet(newWb, ws, sheetName);
+        }
     }
 
-    // 2. Generate Verification Report Sheet
+    // 2. Summary Report Sheet
     if (lastResults && lastResults.length > 0) {
         const reportHeaders = ["報表類別", "檢核規則", "檢核結果", "詳細訊息", "異常意義", "修正建議"];
         const reportData = [reportHeaders];
-
         lastResults.forEach(res => {
-            reportData.push([
-                res.category,
-                res.rule,
-                res.status,
-                res.message,
-                res.significance || "",
-                res.suggestion || ""
-            ]);
+            reportData.push([res.category, res.rule, res.status, res.message, res.significance || "", res.suggestion || ""]);
         });
-
         const reportWs = XLSX.utils.aoa_to_sheet(reportData);
-
-        // Add simple styling (width) info to cols
-        reportWs['!cols'] = [
-            { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 45 }, { wch: 35 }, { wch: 35 }
-        ];
-
-        XLSX.utils.book_append_sheet(newWb, reportWs, "稽核報告");
+        reportWs['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 45 }, { wch: 35 }, { wch: 35 }];
+        XLSX.utils.book_append_sheet(newWb, reportWs, "稽核彙總");
     }
 
     XLSX.writeFile(newWb, `NPO_財務報表稽核報告_${new Date().toISOString().split('T')[0]}.xlsx`);

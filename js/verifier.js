@@ -12,15 +12,18 @@ export class FinancialReportVerifier {
         };
     }
 
-    log(category, rule, status, message, significance = "", suggestion = "") {
-        this.results.push({
-            category,
-            rule,
-            status,
-            message,
-            significance,
-            suggestion
-        });
+    log(category, rule, status, message, significance = "", suggestion = "", targetItem = null) {
+        const finding = { category, rule, status, message, significance, suggestion };
+        this.results.push(finding);
+
+        // Attach to workbook row if possible
+        if (targetItem && this.wb.Sheets[category]) {
+            const ws = this.wb.Sheets[category];
+            // Since we use AOA to sheet conversion, we can't easily find by item name without re-parsing
+            // However, we can store it in a map for the exporter to pick up
+            if (!ws._audit) ws._audit = {};
+            ws._audit[targetItem] = finding;
+        }
     }
 
     runVerify() {
@@ -78,11 +81,15 @@ export class FinancialReportVerifier {
 
             // Individual Item Analysis (Ratios/Variances)
             if (!isTotalRow && name.length > 0) {
+                // Attach ratio to row for export
+                if (totalIncome > 0 && isIncomeItem) row._ratio = (thisYear / totalIncome);
+                if (totalExpense > 0 && isExpenseItem) row._ratio = (thisYear / totalExpense);
+
                 // Rule 5: Budget Variance (>20%)
                 if (budget !== 0) {
                     const variance = Math.abs(thisYear - budget) / Math.abs(budget);
                     if (variance > 0.2) {
-                        this.log(category, "預決算差異", "WARNING", `[${name}] 差異 ${(variance * 100).toFixed(1)}%`, "預決算差異超過 20%", "請說明差異原因，並檢視是否需提供預決算比較表");
+                        this.log(category, "預決算差異", "WARNING", `[${name}] 差異 ${(variance * 100).toFixed(1)}%`, "預決算差異超過 20%", "請說明差異原因，並檢視是否需提供預決算比較表", name);
                     }
                 }
 
@@ -90,7 +97,7 @@ export class FinancialReportVerifier {
                 if (lastYear !== 0) {
                     const variance = Math.abs(thisYear - lastYear) / Math.abs(lastYear);
                     if (variance > 0.1) {
-                        this.log(category, "年度變動率", "WARNING", `[${name}] 增減 ${(variance * 100).toFixed(1)}%`, "兩年內金額增減幅度超過 10%", "說明其科目性質變動及金額大幅波動之原因");
+                        this.log(category, "年度變動率", "WARNING", `[${name}] 增減 ${(variance * 100).toFixed(1)}%`, "兩年內金額增減幅度超過 10%", "說明其科目性質變動及金額大幅波動之原因", name);
                     }
                 }
 
@@ -98,7 +105,7 @@ export class FinancialReportVerifier {
                 if (isExpenseItem && totalExpense > 0) {
                     const ratio = thisYear / totalExpense;
                     if (ratio > 0.2) {
-                        this.log(category, "支出集中度", "WARNING", `[${name}] 佔支出 ${(ratio * 100).toFixed(1)}%`, "單項支出佔比過高 (>20%)", "專案或營運成本較集中，請說明其性質來源是否合理");
+                        this.log(category, "支出集中度", "WARNING", `[${name}] 佔支出 ${(ratio * 100).toFixed(1)}%`, "單項支出佔比過高 (>20%)", "專案或營運成本較集中，請說明其性質來源是否合理", name);
                     }
                 }
             }
@@ -182,9 +189,9 @@ export class FinancialReportVerifier {
             }
         });
 
-        // Rule 1: Sum Check
-        if (totalAssets > 0 && Math.abs(totalAssets - manualSumAssets) > 10) {
-            // this.log(category, "合計正確性", "ERROR", `資產總額(${totalAssets}) 與明細加總(${manualSumAssets.toFixed(0)}) 不符`, "數據運算錯誤", "請檢視資產科目各項內容");
+        // Rule 1: Sum Check (Assets & Liab)
+        if (totalAssets > 0 && Math.abs(totalAssets - manualSumAssets) > 100) {
+            this.log(category, "合計正確性", "WARNING", `資產總額(${totalAssets.toFixed(0)}) 與科目明細加總(${manualSumAssets.toFixed(0)}) 有顯著差異`, "報表內容數據可能漏列或科目歸類不完全", "請核對資產科目明細是否完整加總");
         }
 
         // Rule 2: Balance Check (Assets = Liab + Equity)
@@ -208,7 +215,16 @@ export class FinancialReportVerifier {
             }
         }
 
-        // Rule 7: Debt Ratio (<50%)
+        // Rule 7 (From IS): Depreciation check
+        if (this.crossCheck.fixedAssets > 0) {
+            if (this.crossCheck.depreciationExp === 0) {
+                this.log("收支決算表", "折舊提列情況", "WARNING", `帳列固定資產(${this.crossCheck.fixedAssets.toFixed(0)}) 但收支表未見折舊支出`, "固定資產依規定應定期提列折舊", "請檢查是否遺漏提列折舊，或科目名稱異動");
+            } else {
+                this.log("收支決算表", "折舊提列情況", "OK", `已提列折舊支出: ${this.crossCheck.depreciationExp}`, "符合會計折舊提列規定", "-");
+            }
+        }
+
+        // Rule 7 (BS): Debt Ratio (<50%)
         if (totalAssets > 0) {
             const debtRatio = totalLiabilities / totalAssets;
             if (debtRatio > 0.5) {

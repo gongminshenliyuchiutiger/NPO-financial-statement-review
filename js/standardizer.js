@@ -116,7 +116,7 @@ export class ReportStandardizer {
 
     _processIncomeStatement(inputWb, outputWb) {
         const wsIn = this._findSheetByKeyword(inputWb, ["收支", "損益", "決算"]);
-        const headers = ["科目名稱", "上年度決算數", "本年度預算數", "本年度決算數", "說明"];
+        const headers = ["科目名稱", "上年度決算數", "本年度預算數", "本年度決算數", "佔比 (%)", "稽核狀態", "異常意義", "修正建議"];
         const outData = [headers];
 
         if (wsIn) {
@@ -133,7 +133,10 @@ export class ReportStandardizer {
                     row.last_year || 0,
                     row.budget || 0,
                     row.this_year || 0,
-                    "系統轉檔"
+                    "0%", // Placeholder for Ratio
+                    "待檢核", // Placeholder for Status
+                    "", // Placeholder for Significance
+                    ""  // Placeholder for Suggestion
                 ]);
             });
         }
@@ -144,7 +147,7 @@ export class ReportStandardizer {
 
     _processBalanceSheet(inputWb, outputWb) {
         const wsIn = this._findSheetByKeyword(inputWb, ["資產", "負債", "平衡"]);
-        const headers = ["科目名稱", "上年度金額", "本年度金額", "說明"];
+        const headers = ["科目名稱", "上年度金額", "本年度金額", "佔比 (%)", "稽核狀態", "異常意義", "修正建議"];
         const outData = [headers];
 
         if (wsIn) {
@@ -159,7 +162,10 @@ export class ReportStandardizer {
                     row.item || "",
                     row.last_year || 0,
                     row.this_year || 0,
-                    "系統轉檔"
+                    "0%", // Placeholder for Ratio
+                    "待檢核",
+                    "",
+                    ""
                 ]);
             });
         }
