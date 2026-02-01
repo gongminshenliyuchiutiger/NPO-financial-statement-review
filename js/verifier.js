@@ -10,6 +10,7 @@ export class FinancialReportVerifier {
             bsSurplus: null,
             prevAccumulatedSurplus: 0
         };
+        this.metrics = {}; // Store raw calculated values for export
     }
 
     log(category, rule, status, message, significance = "", suggestion = "", targetItem = null) {
@@ -28,10 +29,15 @@ export class FinancialReportVerifier {
 
     runVerify() {
         this.results = [];
+        this.metrics = {};
         this._verifyIncomeStatement();
         this._verifyBalanceSheet();
         this._verifyFundStatement();
         this._verifyPropertyCatalog();
+
+        // Attach metrics to the results array logic
+        // We can't easily add property to array in JSON if serialized, but within JS it's fine.
+        this.results.metrics = this.metrics;
         return this.results;
     }
 
@@ -133,6 +139,15 @@ export class FinancialReportVerifier {
                 this.log(category, "結餘合理性", "WARNING", `餘絀佔收入 ${(ratio * 100).toFixed(1)}%`, "結餘超過當年收入 40%", "請說明結餘之使用計畫，或是否轉列特定資產項目");
             }
         }
+
+        // Save Metrics for Export
+        this.metrics['收支決算表'] = {
+            totalIncome,
+            manualSumIncome,
+            totalExpense,
+            manualSumExpense,
+            surplus
+        };
     }
 
     _verifyBalanceSheet() {
@@ -300,6 +315,16 @@ export class FinancialReportVerifier {
                 }
             }
         }
+
+        // Save Metrics for Export
+        this.metrics['資產負債表'] = {
+            totalAssets,
+            manualSumAssets,
+            totalLiabilities,
+            manualSumLiab,
+            totalNetValue,
+            bsSurplus
+        };
     }
 
     _verifyFundStatement() {

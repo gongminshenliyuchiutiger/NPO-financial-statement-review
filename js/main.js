@@ -312,6 +312,73 @@ function downloadExcel() {
             newData.push(newRow);
         }
 
+        // --- NEW LOGIC: Prepend Summary Checks (Dashboard) to match Template ---
+        if (isFinancialSheet) {
+            const summaryRows = [];
+
+            // Helper to find result
+            const findResult = (ruleNamePartial) => {
+                return lastResults.find(r => r.category === sheetName && r.rule.includes(ruleNamePartial));
+            };
+
+            // Helper to create Summary Row
+            const createSumRow = (title, ruleKey, valA = "", valB = "") => {
+                const res = findResult(ruleKey);
+                // If result found, use its status/message. If not, assume OK or N/A
+                // However, verifier only pushes logs for Checks it ran.
+                // For "Sum Check", verifier logs ERROR if mismatch.
+
+                let status = "正常";
+                let calc = "TRUE";
+                let meaning = "";
+                let suggest = "";
+
+                if (res) {
+                    status = res.status === 'OK' ? '正常' : res.status;
+                    if (res.status !== 'OK') {
+                        calc = "FALSE"; // Or specific value if available
+                        meaning = res.significance;
+                        suggest = res.suggestion;
+                    } else if (res.message) {
+                        // Sometimes we log OK messages
+                        calc = "TRUE"; // Or extracted value
+                    }
+                } else {
+                    // Logic didn't trigger? Could be OK or Skipped.
+                    // For "Sum Check", if no error logged, usually implies OK in our verifier logic?
+                    // Actually, verifier.js ONLY logs Sum Check if it fails (lines 116, 119 for IS; 193 for BS).
+                    // WAIT: It DOES log "OK" for Balance Check (line 126, 201).
+                    // For Sum Check, it only logs ERROR. So if not found, it is OK.
+                    if (ruleKey === "合計正確性") status = "正常";
+                }
+
+                return [title, valA, valB, calc, status, meaning, suggest];
+            };
+
+            // Define rows based on Sheet Type
+            const dashboard = [];
+            if (sheetName === "收支決算表") {
+                dashboard.push(createSumRow("收入加總正確", "合計正確性")); // Logic: If no error log found, assume OK
+                dashboard.push(createSumRow("支出加總正確", "合計正確性"));
+                dashboard.push(createSumRow("收支平衡", "報表平衡"));
+                dashboard.push(createSumRow("餘絀比例", "結餘合理性"));
+            } else if (sheetName === "資產負債表") {
+                dashboard.push(createSumRow("資產負債平衡", "報表平衡"));
+                dashboard.push(createSumRow("負債比", "財務風險"));
+                dashboard.push(createSumRow("本期餘絀勾稽", "跨表勾稽"));
+                dashboard.push(createSumRow("流動比率", "流動比率"));
+                // Add "Fund Cross Check" if needed, usually S2
+            }
+
+            // Insert Dashboard rows at the beginning (after header)
+            // newData[0] is Header. Insert at index 1.
+            if (dashboard.length > 0) {
+                // Add an empty divider row after dashboard? Template doesn't seem to have one but looks cleaner.
+                // Template just lists them at top.
+                newData.splice(1, 0, ...dashboard, ["", "", "", "", "", "", ""]); // Add separator row
+            }
+        }
+
         const newWs = XLSX.utils.aoa_to_sheet(newData);
 
         // Style Columns (approx width)
