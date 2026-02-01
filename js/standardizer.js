@@ -199,31 +199,9 @@ export class ReportStandardizer {
     }
 
     _processPropertyCatalog(inputWb, outputWb) {
-        const wsIn = this._findSheetByKeyword(inputWb, ["財產", "目錄", "設備"]);
+        // Create empty placeholder if not found for now, or simple copy in future
         const headers = ["資產名稱", "取得日期", "取得成本", "本期折舊", "帳面價值"];
-        const outData = [headers];
-
-        if (wsIn) {
-            const data = this._extractData(wsIn, {
-                "item": ["名稱", "品名", "摘要", "資產"],
-                "date": ["日期", "購置", "取得"],
-                "cost": ["成本", "金額", "原始"],
-                "depreciation": ["折舊", "本期"],
-                "book_value": ["帳面", "未折減", "淨值"]
-            });
-
-            data.forEach(row => {
-                outData.push([
-                    row.item || "",
-                    row.date || "",
-                    row.cost || 0,
-                    row.depreciation || 0,
-                    row.book_value || 0
-                ]);
-            });
-        }
-
-        const wsOut = XLSX.utils.aoa_to_sheet(outData);
+        const wsOut = XLSX.utils.aoa_to_sheet([headers]);
         XLSX.utils.book_append_sheet(outputWb, wsOut, "財產目錄");
     }
 }

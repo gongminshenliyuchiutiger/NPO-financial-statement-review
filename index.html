@@ -43,10 +43,7 @@
                     <a href="#" id="openHelpModal" onclick="openHelpModal(event)"
                         style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">(如何取得？)</a>
                 </div>
-                <div class="password-wrapper">
-                    <input type="password" id="apiKey" placeholder="貼上您的 API Key................................">
-                    <i class="fas fa-eye toggle-password" id="toggleApiKey" onclick="togglePasswordVisibility()"></i>
-                </div>
+                <input type="text" id="apiKey" placeholder="貼上您的 API Key................................">
             </div>
             <p style="color: var(--text-muted); font-size: 0.9em;">
                 * 金鑰僅儲存在您的瀏覽器中，不會上傳至任何伺服器。
@@ -56,12 +53,6 @@
         <!-- Step 2: Upload -->
         <section class="card">
             <h2>2. 上傳報表</h2>
-            <div style="text-align: right; margin-bottom: 10px;">
-                <a href="#" onclick="downloadEmptyTemplate(); return false;" class="btn-sm"
-                    style="text-decoration: none; color: var(--accent); border: 1px solid var(--accent); padding: 5px 15px; border-radius: 15px; font-size: 0.85rem; transition: all 0.3s;">
-                    <i class="fas fa-download"></i> 下載標準範本 (v3)
-                </a>
-            </div>
             <div class="upload-area" id="dropZone">
                 <p>拖曳檔案至此或點擊上傳</p>
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg" hidden>
@@ -157,7 +148,7 @@
                 <p>系統將自動分析財務報表並列出檢核結果：</p>
                 <ul>
                     <li><strong>檢核結果</strong>：列出通過、警告或錯誤的項目。</li>
-                    <li><strong>修正建議</strong>：针对異常項目提供具體的修正方向。</li>
+                    <li><strong>修正建議</strong>：針對異常項目提供具體的修正方向。</li>
                     <li><strong>下載報告</strong>：點擊底部按鈕即可下載完整的 Excel 檢核報告。</li>
                 </ul>
             </div>
@@ -275,30 +266,13 @@
                 });
             }
         }
-
-        // Toggle Password Visibility
-        function togglePasswordVisibility() {
-            const input = document.getElementById('apiKey');
-            const icon = document.getElementById('toggleApiKey');
-
-            if (input.type === "password") {
-                input.type = "text";
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                input.type = "password";
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
-        }
     </script>
 
     <!-- Application Logic -->
     <script type="module" src="js/main.js"></script>
     <script type="module">
         import { main } from './js/main.js';
-        window.downloadExcel = main.downloadExcel;
-        window.downloadEmptyTemplate = main.downloadEmptyTemplate;
+        window.downloadExcel = main.downloadExcel; 
     </script>
 </body>
 
