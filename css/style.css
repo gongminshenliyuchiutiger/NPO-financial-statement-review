@@ -362,3 +362,46 @@ footer {
     margin-top: 20px;
     font-size: 0.9rem;
 }
+
+/* Mascot Styles */
+#mascot {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 150px;
+    height: auto;
+    z-index: 9999;
+    cursor: grab;
+    transition: transform 0.2s ease, filter 0.2s ease;
+    user-select: none;
+    -webkit-user-drag: none;
+    /* Prevent default image dragging */
+}
+
+#mascot:active {
+    cursor: grabbing;
+}
+
+/* Neon Shake Effect on Hover */
+#mascot:hover {
+    animation: neonShake 0.5s infinite alternate;
+    filter: drop-shadow(0 0 10px #00f2fe) drop-shadow(0 0 20px #4facfe);
+}
+
+@keyframes neonShake {
+    0% {
+        transform: rotate(0deg) scale(1);
+    }
+
+    25% {
+        transform: rotate(-3deg) scale(1.05);
+    }
+
+    75% {
+        transform: rotate(3deg) scale(1.05);
+    }
+
+    100% {
+        transform: rotate(0deg) scale(1);
+    }
+}

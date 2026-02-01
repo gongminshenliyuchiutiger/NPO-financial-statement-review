@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NPO 財務報表自動檢核系統 (Pro)</title>
+    <title>NPO財務報表自動檢核系統</title>
     <link rel="stylesheet" href="css/style.css">
 
     <!-- External Libraries -->
@@ -26,8 +26,8 @@
     <div class="bg-shape shape-3"></div>
 
     <header>
-        <h1>NPO Financial Guard</h1>
-        <p>專業非營利組織財務報表自動化檢核系統</p>
+        <h1>NPO財務報表自動檢核系統</h1>
+        <p>台灣公益團體自律聯盟</p>
     </header>
 
     <div class="container">
@@ -38,7 +38,7 @@
             <div class="input-group">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <label for="apiKey" style="margin-bottom: 0;">Google Gemini API 金鑰</label>
-                    <a href="#" id="openHelpModal"
+                    <a href="#" id="openHelpModal" onclick="openHelpModal(event)"
                         style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">(如何取得？)</a>
                 </div>
                 <input type="text" id="apiKey" placeholder="貼上您的 API Key................................">
@@ -97,7 +97,7 @@
     <!-- API Key Help Modal -->
     <div id="helpModal" class="modal">
         <div class="modal-content">
-            <span class="close-modal">&times;</span>
+            <span class="close-modal" onclick="closeHelpModal()">&times;</span>
             <h3 style="color: var(--primary); margin-top: 0;">如何取得免費的 Google Gemini API 金鑰？</h3>
             <p>按照以下簡單步驟，即可取得您自己的免費金鑰：</p>
             <ol style="line-height: 1.8; padding-left: 20px;">
@@ -114,15 +114,96 @@
         </div>
     </div>
 
+    <!-- Mascot -->
+    <img id="mascot" src="image/LiyuChillGuy.svg" alt="Liyu Chill Guy Mascot" title="拖曳我不放鬆一下！">
+
     <footer>
-        <p>Copyright © Liyuchiutiger Gongminshen | Professional NPO Audit System</p>
+        <p>Copyright © Liyuchiutiger Gongminshen | Taiwan NPO Self-Regulation Alliance</p>
     </footer>
+
+    <!-- Essential Logic for Modal (Works even without Server) -->
+    <script>
+        // Direct global functions for "Bulletproof" execution
+        function openHelpModal(e) {
+            if (e) e.preventDefault();
+            var m = document.getElementById('helpModal');
+            if (m) {
+                m.classList.add('show');
+                m.style.display = 'flex'; // Force inline style for double safety
+            }
+        }
+
+        function closeHelpModal() {
+            var m = document.getElementById('helpModal');
+            if (m) {
+                m.classList.remove('show');
+                m.style.display = 'none'; // Clear inline style
+            }
+        }
+
+        // Window click to close
+        window.onclick = function (event) {
+            var m = document.getElementById('helpModal');
+            if (event.target == m) {
+                closeHelpModal();
+            }
+        }
+
+        // Basic Environment Check
+        window.onload = function () {
+            if (window.location.protocol === 'file:') {
+                console.warn("Running via file:// protocol. Modules might be blocked.");
+                // We could show a banner here, but let's just make sure the Modal works first.
+            }
+
+            // INDEPENDENT MASCOT DRAG LOGIC (Safe for file://)
+            const mascot = document.getElementById('mascot');
+            if (mascot) {
+                let isDragging = false;
+                let offsetX, offsetY;
+
+                mascot.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    // Calculate offset from the top-left of the image
+                    offsetX = e.clientX - mascot.getBoundingClientRect().left;
+                    offsetY = e.clientY - mascot.getBoundingClientRect().top;
+                    mascot.style.cursor = 'grabbing';
+
+                    // Disable transition during drag for smoothness
+                    mascot.style.transition = 'none';
+                    e.preventDefault(); // Prevent default image drag behavior
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (isDragging) {
+                        const x = e.clientX - offsetX;
+                        const y = e.clientY - offsetY;
+
+                        mascot.style.left = `${x}px`;
+                        mascot.style.top = `${y}px`;
+
+                        // Clear bottom/right to allow free movement via top/left
+                        mascot.style.bottom = 'auto';
+                        mascot.style.right = 'auto';
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    if (isDragging) {
+                        isDragging = false;
+                        mascot.style.cursor = 'grab';
+                        // Re-enable transition for effects (color/shake)
+                        mascot.style.transition = 'transform 0.2s ease, filter 0.2s ease';
+                    }
+                });
+            }
+        }
+    </script>
 
     <!-- Application Logic -->
     <script type="module" src="js/main.js"></script>
     <script type="module">
         import { main } from './js/main.js';
-        // Expose function for button
         window.downloadExcel = main.downloadExcel; 
     </script>
 </body>
