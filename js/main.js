@@ -201,7 +201,8 @@ function downloadExcel() {
     const fmtPct = (val) => (typeof val === 'number' ? (val * 100).toFixed(2) + "%" : val);
 
     // Standard Headers for Template
-    const headers = ['檢核項目', '輸入值A', '輸入值B', '計算結果', '是否異常', '營運意義', '建議追問／修正'];
+    const headersS1S2 = ['檢核項目', '輸入值A', '輸入值B', '計算結果', '是否異常', '營運意義', '建議追問／修正'];
+    const headersS3 = ['項目', '期初', '期末', '變動數', '判斷', '營運意義', '建議'];
 
     // 1. Process Data Sheets
     for (const sheetName of processedWorkbook.SheetNames) {
@@ -209,17 +210,21 @@ function downloadExcel() {
         let targetSheetName = "";
         let isFinancialSheet = false;
         let isFundSheet = false;
+        let currentHeaders = [];
 
         // Determine Target Sheet Name & Type
         if (sheetName === "收支決算表") {
             targetSheetName = "S1_收支決算表_輸入即檢核";
             isFinancialSheet = true;
+            currentHeaders = headersS1S2;
         } else if (sheetName === "資產負債表") {
             targetSheetName = "S2_資產負債表_輸入即檢核";
             isFinancialSheet = true;
+            currentHeaders = headersS1S2;
         } else if (sheetName.includes("基金") || sheetName.includes("淨值")) {
             targetSheetName = "S3_基金或淨值變動_分析";
             isFundSheet = true;
+            currentHeaders = headersS3;
         } else {
             // Keep other sheets as is
             XLSX.utils.book_append_sheet(newWb, ws, sheetName);
@@ -228,7 +233,7 @@ function downloadExcel() {
 
         const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
         const auditData = ws._audit || {};
-        const newData = [headers]; // Start with headers
+        const newData = [currentHeaders]; // Start with specific headers
 
         // Process Rows
         // Skip original header row (start at r=1)
@@ -252,32 +257,27 @@ function downloadExcel() {
                 valueA = row[1];
                 valueB = row[3];
 
-                // If S1 (Income Statement), we might have Budget in Col 2. 
-                // The template doesn't strict have Budget col, but we can append it or ignore.
-                // For direct mapping to template structure, we focus on Last vs This comparison which rules use.
                 // Ratio calculation (This / Total)
                 if (row._ratio !== undefined) {
                     calcResult = fmtPct(row._ratio);
                 }
             } else if (isFundSheet) {
-                // S3: Value A = Start (Col 1), Value B = End (Col 2), Change (Col 3)
-                // Assuming standardizer output: [Item, Start, Decrease, Increase, End] ?? 
-                // Wait, standardizer logic for Fund sheet might vary. 
-                // Let's check verifier logic: 
-                // Verifier uses: row[2] (Increase), row[3] (Decrease).
-                // Let's assume input keys: [Item, Start, Increase, Decrease, End] based on common logic 
-                // or [Item, Start, End] ??
-                // Let's stick to what's visible in `verifier.js`:
-                // It reads row[2] (Increase?), row[3] (Decrease?).
-                // Let's safe guard:
-                valueA = row[1]; // Start
-                valueB = row[4] || row[2]; // End (Try col 4 first if standard 5-col, else col 2)
+                // S3: Value A = Start (Col 1), Value B = End (Col 2 or 4)
+                valueA = row[1];
+
+                // Determine End Value (Col 4 if exists, else Col 2)
+                if (row.length >= 5) {
+                    valueB = row[4];
+                } else {
+                    valueB = (row[4] !== undefined) ? row[4] : row[2];
+                }
 
                 // Calculate simple change
                 const vA = parseFloat(valueA) || 0;
                 const vB = parseFloat(valueB) || 0;
-                const diff = vB - vA;
-                calcResult = diff !== 0 ? diff : "";
+                const diff = (vB - vA);
+                // Simple difference
+                calcResult = diff;
             }
 
             // Fill Audit Info
