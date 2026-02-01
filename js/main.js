@@ -37,16 +37,22 @@ function setupModal() {
 setupModal();
 
 // Event Listeners (Remaining Drag-and-Drop)
-dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-});
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    handleFileSelect(e.dataTransfer.files[0]);
-});
+function initDropZone() {
+    const dz = document.getElementById('dropZone');
+    if (dz) {
+        dz.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dz.classList.add('dragover');
+        });
+        dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+        dz.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dz.classList.remove('dragover');
+            if (window.appHandleFileSelect) window.appHandleFileSelect(e.dataTransfer.files[0]);
+        });
+    }
+}
+initDropZone();
 
 let lastResults = []; // Store results for export functionality
 
@@ -228,18 +234,4 @@ function downloadExcel() {
     XLSX.writeFile(newWb, "NPO_財務報表檢核報告_Pro.xlsx");
 }
 
-// API Key Toggle Logic
-const togglePassword = document.getElementById('togglePassword');
-const apiKeyInput = document.getElementById('apiKey');
-
-if (togglePassword && apiKeyInput) {
-    togglePassword.addEventListener('click', function () {
-        // toggle the type attribute
-        const type = apiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
-        apiKeyInput.setAttribute('type', type);
-
-        // toggle the icon
-        this.classList.toggle('fa-eye');
-        this.classList.toggle('fa-eye-slash');
-    });
-}
+// End of main.js

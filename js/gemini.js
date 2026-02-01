@@ -3,8 +3,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 export class GeminiProcessor {
     constructor(apiKey) {
         if (!apiKey) throw new Error("API Key is required");
-        this.genAI = new GoogleGenerativeAI(apiKey);
-        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+        // Remove any non-ASCII characters that might cause Header encoding errors
+        const sanitizedKey = apiKey.replace(/[^\x21-\x7E]/g, "").trim();
+        this.genAI = new GoogleGenerativeAI(sanitizedKey);
+        this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     }
 
     async processFile(file) {
