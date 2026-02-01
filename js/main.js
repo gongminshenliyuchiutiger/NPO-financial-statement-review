@@ -14,6 +14,26 @@ const resultTableBody = document.getElementById('resultTableBody');
 let selectedFile = null;
 let processedWorkbook = null;
 
+// Modal Logic
+const modal = document.getElementById('helpModal');
+const openBtn = document.getElementById('openHelpModal');
+const closeBtn = document.querySelector('.close-modal');
+
+if (openBtn && modal && closeBtn) {
+    openBtn.onclick = (e) => {
+        e.preventDefault();
+        modal.classList.add('show');
+    }
+    closeBtn.onclick = () => {
+        modal.classList.remove('show');
+    }
+    window.onclick = (e) => {
+        if (e.target == modal) {
+            modal.classList.remove('show');
+        }
+    }
+}
+
 // Event Listeners
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', (e) => {
@@ -28,25 +48,30 @@ dropZone.addEventListener('drop', (e) => {
 });
 fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
 
-// Auto-trigger verification on file select
+let lastResults = []; // Store results for export functionality
+
+// Auto-trigger verification on file select -> REMOVED AUTO TRIGGER
 async function handleFileSelect(file) {
     if (!file) return;
     selectedFile = file;
     // UI Feedback in Dropzone
     dropZone.innerHTML = `<p style="font-weight:bold; color:var(--accent)">已選擇: ${file.name}</p>`;
 
-    // Start automatically
-    await startVerification();
+    // Enable the button, but DO NOT start automatically
+    verifyBtn.disabled = false;
+    resultsSection.style.display = 'none';
 }
 
 async function startVerification() {
     if (!selectedFile) return;
 
     // Reset UI
+    verifyBtn.disabled = true;
     loadingDiv.style.display = 'block';
     resultsSection.style.display = 'none';
     resultTableBody.innerHTML = '';
     processedWorkbook = null;
+    lastResults = [];
 
     try {
         const apiKey = document.getElementById('apiKey').value.trim();
@@ -76,16 +101,17 @@ async function startVerification() {
 
         // Verification
         const verifier = new FinancialReportVerifier(workbook);
-        const results = verifier.runVerify();
+        lastResults = verifier.runVerify(); // Store description
 
         processedWorkbook = workbook;
-        displayResults(results);
+        displayResults(lastResults);
 
     } catch (error) {
         alert("錯誤: " + error.message);
         console.error(error);
     } finally {
         loadingDiv.style.display = 'none';
+        verifyBtn.disabled = false;
     }
 }
 
@@ -143,5 +169,42 @@ export const main = {
 
 function downloadExcel() {
     if (!processedWorkbook) return;
-    XLSX.writeFile(processedWorkbook, "標準化檢核報告.xlsx");
+
+    // 1. Create a deep copy of the processed workbook (so we don't modify original if viewed again)
+    // SheetJS structures are complex, simple way is to create NEW workbook and append
+    const newWb = XLSX.utils.book_new();
+
+    // Copy existing sheets (Standardized Data)
+    for (const sheetName of processedWorkbook.SheetNames) {
+        const sheet = processedWorkbook.Sheets[sheetName];
+        XLSX.utils.book_append_sheet(newWb, sheet, sheetName);
+    }
+
+    // 2. Generate Verification Report Sheet
+    if (lastResults && lastResults.length > 0) {
+        const reportHeaders = ["類別", "檢核規則", "狀態", "訊息", "異常意義", "修正建議"];
+        const reportData = [reportHeaders];
+
+        lastResults.forEach(res => {
+            reportData.push([
+                res.category,
+                res.rule,
+                res.status,
+                res.message,
+                res.significance || "",
+                res.suggestion || ""
+            ]);
+        });
+
+        const reportWs = XLSX.utils.aoa_to_sheet(reportData);
+
+        // Add simple styling (width) info to cols
+        reportWs['!cols'] = [
+            { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 30 }
+        ];
+
+        XLSX.utils.book_append_sheet(newWb, reportWs, "檢核報告結果");
+    }
+
+    XLSX.writeFile(newWb, "NPO_財務報表檢核報告_Pro.xlsx");
 }

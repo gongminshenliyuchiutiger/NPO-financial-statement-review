@@ -36,10 +36,16 @@
         <section class="card">
             <h2>1. 系統設定</h2>
             <div class="input-group">
-                <label for="apiKey">Gemini API Key (選填，用於 PDF/圖片 辨識)</label>
-                <input type="text" id="apiKey" placeholder="貼上您的 API Key...">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label for="apiKey" style="margin-bottom: 0;">Google Gemini API 金鑰</label>
+                    <a href="#" id="openHelpModal"
+                        style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">(如何取得？)</a>
+                </div>
+                <input type="text" id="apiKey" placeholder="貼上您的 API Key................................">
             </div>
-            <p style="color: var(--text-muted); font-size: 0.9em;">* API Key 僅在瀏覽器端使用，不會上傳至任何伺服器。</p>
+            <p style="color: var(--text-muted); font-size: 0.9em;">
+                * 金鑰僅儲存在您的瀏覽器中，不會上傳至任何伺服器。
+            </p>
         </section>
 
         <!-- Step 2: Upload -->
@@ -49,7 +55,12 @@
                 <p>拖曳檔案至此或點擊上傳</p>
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg" hidden>
             </div>
-            <div id="loading" style="display: none; text-align: center;">
+
+            <div style="text-align: center; margin-top: 20px;">
+                <button id="verifyBtn" class="btn" disabled>開始智慧檢核</button>
+            </div>
+
+            <div id="loading" style="display: none; text-align: center; margin-top: 20px;">
                 <div class="spinner"></div>
                 <p>AI 分析運算中，請稍候...</p>
             </div>
@@ -81,6 +92,26 @@
             </div>
         </section>
 
+    </div>
+
+    <!-- API Key Help Modal -->
+    <div id="helpModal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3 style="color: var(--primary); margin-top: 0;">如何取得免費的 Google Gemini API 金鑰？</h3>
+            <p>按照以下簡單步驟，即可取得您自己的免費金鑰：</p>
+            <ol style="line-height: 1.8; padding-left: 20px;">
+                <li>前往 <a href="https://aistudio.google.com/app/apikey" target="_blank"
+                        style="color: var(--primary); font-weight: bold;">Google AI Studio 的 API 金鑰頁面</a>。</li>
+                <li>使用您的 Google 帳號登入。</li>
+                <li>點擊頁面上的<strong>「建立 API 金鑰」(Create API key)</strong> 按鈕。</li>
+                <li>系統會立即產生一組新的金鑰。點擊金鑰旁邊的複製圖示。</li>
+                <li>回到本頁面，將複製的金鑰貼到輸入框中即可！</li>
+            </ol>
+            <div class="warning-box">
+                <strong>提醒：</strong>請妥善保管您的 API 金鑰，不要與他人分享。AI 服務會消耗一定的額度。
+            </div>
+        </div>
     </div>
 
     <footer>
