@@ -169,6 +169,9 @@ export class FinancialReportVerifier {
         let manualSumAssets = 0;
         let manualSumLiab = 0;
 
+        let currentAssets = 0;
+        let currentLiabilities = 0;
+
         rows.forEach(row => {
             const name = String(row[0] || "").trim();
             const lastYear = parseFloat(row[1]) || 0;
@@ -301,8 +304,8 @@ export class FinancialReportVerifier {
         if (["流動資產", "流動資產合計", "流動資產總額"].some(k => rows.find(r => (r[0] || "").includes(k)))) {
             // Find Current Assets and Current Liabilities
             // Find Current Assets and Current Liabilities
-            let currentAssets = 0;
-            let currentLiabilities = 0;
+            // Find Current Assets and Current Liabilities
+            // Variables declared at top scope
 
             rows.forEach(row => {
                 const name = String(row[0] || "").trim();
@@ -311,9 +314,7 @@ export class FinancialReportVerifier {
                 if (name === "流動負債" || name === "流動負債合計" || name === "流動負債總額") currentLiabilities = val;
             });
 
-            // Store for export
-            this.metrics['資產負債表'].currentAssets = currentAssets;
-            this.metrics['資產負債表'].currentLiabilities = currentLiabilities;
+
 
             if (currentLiabilities > 0) {
                 const liqRatio = currentAssets / currentLiabilities;
@@ -328,6 +329,8 @@ export class FinancialReportVerifier {
         // Save Metrics for Export
         this.metrics['資產負債表'] = {
             totalAssets,
+            currentAssets,
+            currentLiabilities,
             manualSumAssets,
             totalLiabilities,
             manualSumLiab,
