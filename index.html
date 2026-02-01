@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NPO財務報表自動檢核系統</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <!-- External Libraries -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
@@ -28,6 +29,7 @@
     <header>
         <h1>NPO財務報表自動檢核系統</h1>
         <p>台灣公益團體自律聯盟</p>
+        <button class="btn-manual" onclick="openManualModal()"><i class="fas fa-book-open"></i> 系統使用說明書</button>
     </header>
 
     <div class="container">
@@ -51,6 +53,12 @@
         <!-- Step 2: Upload -->
         <section class="card">
             <h2>2. 上傳報表</h2>
+            <div style="text-align: right; margin-bottom: 10px;">
+                <a href="NPO_財務報表檢核範本_v2.xlsx" download class="btn-sm"
+                    style="text-decoration: none; color: var(--accent); border: 1px solid var(--accent); padding: 5px 15px; border-radius: 15px; font-size: 0.85rem; transition: all 0.3s;">
+                    <i class="fas fa-download"></i> 下載空白範本
+                </a>
+            </div>
             <div class="upload-area" id="dropZone">
                 <p>拖曳檔案至此或點擊上傳</p>
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg" hidden>
@@ -114,6 +122,49 @@
         </div>
     </div>
 
+    <!-- System Manual Modal -->
+    <div id="manualModal" class="modal">
+        <div class="modal-content manual-content">
+            <span class="close-modal" onclick="closeManualModal()">&times;</span>
+            <h2
+                style="color: var(--primary); text-align: center; border-bottom: 2px solid var(--glass-border); padding-bottom: 10px;">
+                <i class="fas fa-book-open"></i> 系統使用說明書
+            </h2>
+
+            <div class="manual-section">
+                <h3><i class="fas fa-key"></i> 系統設定 (API Key)</h3>
+                <p>本系統使用 Google Gemini AI 進行智慧分析。請先取得免費的 API Key 並貼入欄位。</p>
+                <ul>
+                    <li>點擊「如何取得？」連結可查看詳細教學。</li>
+                    <li>API Key 僅儲存於您的瀏覽器，保障隱私安全。</li>
+                </ul>
+            </div>
+
+            <div class="manual-section">
+                <h3><i class="fas fa-file-upload"></i> 上傳報表</h3>
+                <p>支援多種檔案格式，請直接拖曳或點擊上傳：</p>
+                <ul>
+                    <li><strong>Excel 檔 (.xlsx, .xls)</strong>：系統自動讀取並進行規則檢核。</li>
+                    <li><strong>圖片/PDF (.jpg, .pdf 等)</strong>：透過 AI 辨識內容並轉換為標準格式後進行檢核。</li>
+                </ul>
+            </div>
+
+            <div class="manual-section">
+                <h3><i class="fas fa-clipboard-check"></i> 檢核報告與下載</h3>
+                <p>系統將自動分析財務報表並列出檢核結果：</p>
+                <ul>
+                    <li><strong>檢核結果</strong>：列出通過、警告或錯誤的項目。</li>
+                    <li><strong>修正建議</strong>：针对異常項目提供具體的修正方向。</li>
+                    <li><strong>下載報告</strong>：點擊底部按鈕即可下載完整的 Excel 檢核報告。</li>
+                </ul>
+            </div>
+
+            <div class="warning-box" style="text-align: center;">
+                <i class="fas fa-lightbulb"></i> <strong>小提示</strong>：若遇到問題，請嘗試重新整理頁面或檢查檔案格式是否正確。
+            </div>
+        </div>
+    </div>
+
     <!-- Mascot -->
     <img id="mascot" src="image/LiyuChillGuy.svg" alt="Liyu Chill Guy Mascot" title="拖曳我不放鬆一下！">
 
@@ -141,11 +192,34 @@
             }
         }
 
+        // Manual Modal Logic
+        function openManualModal(e) {
+            if (e) e.preventDefault();
+            var m = document.getElementById('manualModal');
+            if (m) {
+                m.classList.add('show');
+                m.style.display = 'flex';
+            }
+        }
+
+        function closeManualModal() {
+            var m = document.getElementById('manualModal');
+            if (m) {
+                m.classList.remove('show');
+                m.style.display = 'none';
+            }
+        }
+
         // Window click to close
         window.onclick = function (event) {
-            var m = document.getElementById('helpModal');
-            if (event.target == m) {
+            var helpModal = document.getElementById('helpModal');
+            var manualModal = document.getElementById('manualModal');
+
+            if (event.target == helpModal) {
                 closeHelpModal();
+            }
+            if (event.target == manualModal) {
+                closeManualModal();
             }
         }
 
