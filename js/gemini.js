@@ -6,7 +6,8 @@ export class GeminiProcessor {
         // Remove any non-ASCII characters that might cause Header encoding errors
         const sanitizedKey = apiKey.replace(/[^\x21-\x7E]/g, "").trim();
         this.genAI = new GoogleGenerativeAI(sanitizedKey);
-        this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Use gemini-2.5-flash as requested (Stable and high-performance)
+        this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     }
 
     async processFile(file) {
