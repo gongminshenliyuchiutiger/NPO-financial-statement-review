@@ -14,6 +14,7 @@ export class ReportStandardizer {
 
         this._processIncomeStatement(inputWb, outputWb);
         this._processBalanceSheet(inputWb, outputWb);
+        this._processFundStatement(inputWb, outputWb); // New
         this._processPropertyCatalog(inputWb, outputWb);
 
         return outputWb;
@@ -165,6 +166,36 @@ export class ReportStandardizer {
 
         const wsOut = XLSX.utils.aoa_to_sheet(outData);
         XLSX.utils.book_append_sheet(outputWb, wsOut, "資產負債表");
+    }
+
+    _processFundStatement(inputWb, outputWb) {
+        // Keywords: 基金, 淨值, 變動
+        const wsIn = this._findSheetByKeyword(inputWb, ["基金", "淨值", "變動"]);
+        const headers = ["科目名稱", "期初餘額", "本期增加", "本期減少", "期末餘額"];
+        const outData = [headers];
+
+        if (wsIn) {
+            const data = this._extractData(wsIn, {
+                "item": ["科目", "項目", "名稱", "種類"],
+                "start_balance": ["期初", "上期"],
+                "increase": ["增加", "撥入"],
+                "decrease": ["減少", "動支"],
+                "end_balance": ["期末", "本期"]
+            });
+
+            data.forEach(row => {
+                outData.push([
+                    row.item || "",
+                    row.start_balance || 0,
+                    row.increase || 0,
+                    row.decrease || 0,
+                    row.end_balance || 0
+                ]);
+            });
+        }
+
+        const wsOut = XLSX.utils.aoa_to_sheet(outData);
+        XLSX.utils.book_append_sheet(outputWb, wsOut, "基金收支表");
     }
 
     _processPropertyCatalog(inputWb, outputWb) {

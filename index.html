@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NPO 財務報表檢核系統 (GitHub Pages版)</title>
+    <title>NPO 財務報表自動檢核系統 (Pro)</title>
     <link rel="stylesheet" href="css/style.css">
-    <!-- SheetJS for Excel processing -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <!-- Google Generative AI SDK -->
+
+    <!-- External Libraries -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script type="importmap">
       {
         "imports": {
@@ -19,88 +19,81 @@
 </head>
 
 <body>
+
+    <!-- Background Elements -->
+    <div class="bg-shape shape-1"></div>
+    <div class="bg-shape shape-2"></div>
+    <div class="bg-shape shape-3"></div>
+
+    <header>
+        <h1>NPO Financial Guard</h1>
+        <p>專業非營利組織財務報表自動化檢核系統</p>
+    </header>
+
     <div class="container">
-        <header>
-            <h1>NPO 財務報表檢核系統</h1>
-            <p>純前端版本 - 資料在您瀏覽器中處理，不會上傳到伺服器</p>
-        </header>
 
-        <section class="control-panel">
-            <div class="card">
-                <h2>1. 設定 API Key (選填)</h2>
-                <div class="input-group">
-                    <label for="apiKey">Gemini API Key</label>
-                    <input type="password" id="apiKey" placeholder="若需辨識圖片/PDF請輸入 Key">
-                    <p class="hint">如果不輸入，僅支援標準 Excel 檔檢核。</p>
-                </div>
+        <!-- Step 1: Configuration -->
+        <section class="card">
+            <h2>1. 系統設定</h2>
+            <div class="input-group">
+                <label for="apiKey">Gemini API Key (選填，用於 PDF/圖片 辨識)</label>
+                <input type="text" id="apiKey" placeholder="貼上您的 API Key...">
             </div>
+            <p style="color: var(--text-muted); font-size: 0.9em;">* API Key 僅在瀏覽器端使用，不會上傳至任何伺服器。</p>
+        </section>
 
-            <div class="card">
-                <h2>2. 上傳財報</h2>
-                <div class="upload-area" id="dropZone">
-                    <p>拖曳檔案到此處 或 點擊上傳</p>
-                    <input type="file" id="fileInput" accept=".xlsx, .xlsm, .pdf, .jpg, .png, .jpeg">
-                </div>
-                <div id="fileInfo" class="hidden">已選擇: <span id="fileName"></span></div>
+        <!-- Step 2: Upload -->
+        <section class="card">
+            <h2>2. 上傳報表</h2>
+            <div class="upload-area" id="dropZone">
+                <p>拖曳檔案至此或點擊上傳</p>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg" hidden>
             </div>
-
-            <div class="card action-card">
-                <button id="verifyBtn" disabled>開始檢核</button>
-                <div id="loading" class="hidden">
-                    <div class="spinner"></div>
-                    <span id="statusText">處理中...</span>
-                </div>
+            <div id="loading" style="display: none; text-align: center;">
+                <div class="spinner"></div>
+                <p>AI 分析運算中，請稍候...</p>
             </div>
         </section>
 
-        <section id="resultsSection" class="hidden">
-            <h2>檢核結果</h2>
+        <!-- Step 3: Result -->
+        <section id="resultSection" class="card" style="display: none;">
+            <h2>3. 檢核報告</h2>
+            <div id="summary"></div>
 
-            <div class="summary-box">
-                <div class="score-card">
-                    <span class="label">檢核項目</span>
-                    <span class="value" id="totalChecks">0</span>
-                </div>
-                <div class="score-card error">
-                    <span class="label">異常 (Error)</span>
-                    <span class="value" id="errorCount">0</span>
-                </div>
-                <div class="score-card warning">
-                    <span class="label">警示 (Warning)</span>
-                    <span class="value" id="warningCount">0</span>
-                </div>
-            </div>
+            <table class="result-table">
+                <thead>
+                    <tr>
+                        <th width="15%">報表類別</th>
+                        <th width="15%">檢核項目</th>
+                        <th width="10%">狀態</th>
+                        <th width="20%">檢核結果</th>
+                        <th width="20%">異常意義</th>
+                        <th width="20%">修正建議</th>
+                    </tr>
+                </thead>
+                <tbody id="resultTableBody">
+                    <!-- Results injected here -->
+                </tbody>
+            </table>
 
-            <div class="actions">
-                <button id="downloadBtn" class="secondary-btn">下載標準化財報 (Excel)</button>
-            </div>
-
-            <div class="table-container">
-                <table id="resultTable">
-                    <thead>
-                        <tr>
-                            <th>狀態</th>
-                            <th>類別</th>
-                            <th>檢查項目</th>
-                            <th>說明</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Results will be injected here -->
-                    </tbody>
-                </table>
+            <div style="margin-top: 30px; text-align: center;">
+                <button class="btn" onclick="downloadExcel()">下載完整 Excel 報告</button>
             </div>
         </section>
+
     </div>
 
-
-    <!-- Footer -->
     <footer>
-        <p>Copyright © Liyuchiutiger Gongminshen</p>
+        <p>Copyright © Liyuchiutiger Gongminshen | Professional NPO Audit System</p>
     </footer>
 
     <!-- Application Logic -->
     <script type="module" src="js/main.js"></script>
+    <script type="module">
+        import { main } from './js/main.js';
+        // Expose function for button
+        window.downloadExcel = main.downloadExcel; 
+    </script>
 </body>
 
 </html>
