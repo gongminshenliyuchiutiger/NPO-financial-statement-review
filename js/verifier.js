@@ -50,10 +50,9 @@ export class FinancialReportVerifier {
         let totalIncome = 0;
         let totalExpense = 0;
         let surplus = 0;
-        let calcSurplus = 0;
 
-        let incomeItems = [];
-        let expenseItems = [];
+        let manualSumIncome = 0;
+        let manualSumExpense = 0;
 
         rows.forEach(row => {
             const name = String(row[0] || "").trim();
@@ -61,89 +60,72 @@ export class FinancialReportVerifier {
             const budget = parseFloat(row[2]) || 0;
             const thisYear = parseFloat(row[3]) || 0;
 
-            if (name.includes("收入總額")) totalIncome = thisYear;
-            if (name.includes("支出總額")) totalExpense = thisYear;
+            if (name.includes("收入總額") || name === "收入合計") totalIncome = thisYear;
+            if (name.includes("支出總額") || name === "支出合計") totalExpense = thisYear;
             if (name.includes("本期餘絀")) {
                 surplus = thisYear;
                 this.crossCheck.incomeSurplus = surplus;
             }
             if (name.includes("折舊")) this.crossCheck.depreciationExp += thisYear;
 
-            // Collect items for logic check
-            // Simple heuristic to differentiate income/expense based on position or checking "收入"/"支出"
-            // For this standard format, we verify Logic Rule 4 below row-by-row
+            // Manual Sum Logic (Heuristic: skip if name contains "總額", "合計", "餘絀")
+            const isTotalRow = name.includes("總額") || name.includes("合計") || name.includes("餘絀");
+            const isIncomeItem = name.includes("收入") && !isTotalRow;
+            const isExpenseItem = !name.includes("收入") && !isTotalRow && name.length > 0;
 
-            // 4. Single Expense Item check (> 20% of Total Expense)
-            // Assuming this is an expense item if not "Total" and not "Surplus"
-            // In a real generic parser this is hard, but we assume the standardizer did a decent job
-            // We'll skip "Total" rows
-            if (!name.includes("總額") && !name.includes("餘絀") && name.length > 0) {
-                // Check if it's an expense item (heuristic: row index or keyword)
-                // Here we simply check ratio against Total Expense if valuable
-                if (totalExpense > 0 && thisYear > 0) {
-                    const ratio = thisYear / totalExpense;
-                    if (ratio > 0.2) {
-                        // Check if likely expense (no "收入" in name)
-                        if (!name.includes("收入")) {
-                            this.log(category, "支出集中度", "WARNING",
-                                `科目 [${name}] 金額佔總支出 ${(ratio * 100).toFixed(1)}%`,
-                                "單一科目支出佔比過高 (>20%)",
-                                "說明其性質及原因，確認是否合理");
-                        }
+            if (isIncomeItem) manualSumIncome += thisYear;
+            if (isExpenseItem) manualSumExpense += thisYear;
+
+            // Individual Item Analysis (Ratios/Variances)
+            if (!isTotalRow && name.length > 0) {
+                // Rule 5: Budget Variance (>20%)
+                if (budget !== 0) {
+                    const variance = Math.abs(thisYear - budget) / Math.abs(budget);
+                    if (variance > 0.2) {
+                        this.log(category, "預決算差異", "WARNING", `[${name}] 差異 ${(variance * 100).toFixed(1)}%`, "預決算差異超過 20%", "請說明差異原因，並檢視是否需提供預決算比較表");
                     }
                 }
-            }
 
-            // 5. Budget Variance Check
-            if (budget > 0) {
-                const variance = Math.abs(thisYear - budget) / budget;
-                if (variance > 0.2) {
-                    this.log(category, "預算執行率", "WARNING",
-                        `[${name}] 預決算差異 ${(variance * 100).toFixed(1)}%`,
-                        "預算與決算差異超過 20%",
-                        "請說明原因 (須提供預決算比較表)");
+                // Rule 6: YoY Variance (>10%)
+                if (lastYear !== 0) {
+                    const variance = Math.abs(thisYear - lastYear) / Math.abs(lastYear);
+                    if (variance > 0.1) {
+                        this.log(category, "年度變動率", "WARNING", `[${name}] 增減 ${(variance * 100).toFixed(1)}%`, "兩年內金額增減幅度超過 10%", "說明其科目性質變動及金額大幅波動之原因");
+                    }
                 }
-            }
 
-            // 6. YoY Check
-            if (lastYear > 0) {
-                const variance = Math.abs(thisYear - lastYear) / lastYear;
-                if (variance > 0.1) {
-                    this.log(category, "年度變動率", "WARNING",
-                        `[${name}] 年度增減 ${(variance * 100).toFixed(1)}%`,
-                        "兩年內金額增減幅度超過 10%",
-                        "請說明其性質及原因");
+                // Rule 4: Single Expense > 20% of Total
+                if (isExpenseItem && totalExpense > 0) {
+                    const ratio = thisYear / totalExpense;
+                    if (ratio > 0.2) {
+                        this.log(category, "支出集中度", "WARNING", `[${name}] 佔支出 ${(ratio * 100).toFixed(1)}%`, "單項支出佔比過高 (>20%)", "專案或營運成本較集中，請說明其性質來源是否合理");
+                    }
                 }
             }
         });
 
-        // 1. Summation Check (Simplified: Check if Total Income/Expense rows exist)
-        if (totalIncome === 0 && totalExpense === 0) {
-            this.log(category, "合計正確性", "WARNING", "無法偵測到收入或支出總額", "可能影響其他比率計算", "請確認科目名稱包含 '收入總額'/'支出總額'");
+        // Rule 1: Sum Check
+        if (totalIncome > 0 && Math.abs(totalIncome - manualSumIncome) > 10) {
+            this.log(category, "合計正確性", "ERROR", `收入合計(${totalIncome}) 與明細加總(${manualSumIncome.toFixed(0)}) 不符`, "報表內容數據可能漏列或加總錯誤", "請重新計算所有收入明細金額");
+        }
+        if (totalExpense > 0 && Math.abs(totalExpense - manualSumExpense) > 10) {
+            this.log(category, "合計正確性", "ERROR", `支出合計(${totalExpense}) 與明細加總(${manualSumExpense.toFixed(0)}) 不符`, "報表內容數據可能漏列或加總錯誤", "請重新計算所有支出明細金額");
         }
 
-        // 2. Balance Check
-        if (Math.abs(totalIncome - (totalExpense + surplus)) > 1) {
-            this.log(category, "報表平衡", "ERROR",
-                `不平衡: 收入(${totalIncome}) != 支出(${totalExpense}) + 餘絀(${surplus})`,
-                "基本會計恆等式錯誤",
-                "請檢查各項金額加總是否正確");
-        } else {
-            this.log(category, "報表平衡", "OK", "收支平衡正確", "基本會計恆等式正確", "-");
+        // Rule 2: Balance Check (Revenue = Expense + Surplus)
+        if (Math.abs(totalIncome - (totalExpense + surplus)) > 10) {
+            this.log(category, "報表平衡", "ERROR", `不平衡: 收入(${totalIncome}) != 支出(${totalExpense}) + 餘絀(${surplus})`, "基本會計恆等式錯誤", "請檢查收入明細、支出明細與餘絀計算是否有一致");
+        } else if (totalIncome > 0) {
+            this.log(category, "報表平衡", "OK", "收支平衡無誤", "基本會計恆等式正確", "-");
         }
 
-        // 3. Surplus Ratio Check
+        // Rule 3: Surplus Ratio (<40%)
         if (totalIncome > 0) {
             const ratio = surplus / totalIncome;
             if (ratio > 0.4) {
-                this.log(category, "結餘合理性", "WARNING",
-                    `本期餘絀佔收入 ${(ratio * 100).toFixed(1)}%`,
-                    "結餘超過當年收入 40%",
-                    "說明其結餘之使用計畫或轉列何種用途");
+                this.log(category, "結餘合理性", "WARNING", `餘絀佔收入 ${(ratio * 100).toFixed(1)}%`, "結餘超過當年收入 40%", "請說明結餘之使用計畫，或是否轉列特定資產項目");
             }
         }
-
-        // 7. Depreciation presence check (will be cross-checked in BS)
     }
 
     _verifyBalanceSheet() {
@@ -156,18 +138,22 @@ export class FinancialReportVerifier {
 
         let totalAssets = 0;
         let totalLiabilities = 0;
-        let totalFundSurplus = 0; // Equity
+        let totalNetValue = 0;
         let bsSurplus = 0;
-        let accumSurplusLast = 0; // accumulated surplus prev year
+        let accumSurplusLast = 0;
+        let accumSurplusThis = 0;
+
+        let manualSumAssets = 0;
+        let manualSumLiab = 0;
 
         rows.forEach(row => {
             const name = String(row[0] || "").trim();
             const lastYear = parseFloat(row[1]) || 0;
             const thisYear = parseFloat(row[2]) || 0;
 
-            if (name.includes("資產總額")) totalAssets = thisYear;
-            if (name.includes("負債總額")) totalLiabilities = thisYear;
-            if (name.includes("基金") && name.includes("總額")) totalFundSurplus = thisYear;
+            if (name.includes("資產總額") || name === "資產合計") totalAssets = thisYear;
+            if (name.includes("負債總額") || name === "負債合計") totalLiabilities = thisYear;
+            if (name.includes("淨值總額") || name.includes("權益總額") || name === "淨值合計" || (name.includes("基金") && name.includes("合計"))) totalNetValue = thisYear;
 
             if (name.includes("本期餘絀")) {
                 bsSurplus = thisYear;
@@ -176,114 +162,77 @@ export class FinancialReportVerifier {
 
             if (name.includes("累積餘絀")) {
                 accumSurplusLast = lastYear;
+                accumSurplusThis = thisYear;
                 this.crossCheck.prevAccumulatedSurplus = accumSurplusLast;
             }
 
-            if (name.includes("固定資產") && !name.includes("總額")) {
+            if (name.includes("固定資產") && !name.includes("總額") && !name.includes("合計")) {
                 this.crossCheck.fixedAssets += thisYear;
             }
 
-            // 6. Debt Composition Check
+            // Sum Check logic
+            if (name.includes("資產") && !name.includes("總額") && !name.includes("合計")) manualSumAssets += thisYear;
+            if (name.includes("負債") && !name.includes("總額") && !name.includes("合計")) manualSumLiab += thisYear;
+
+            // Rule 6: Debt Composition (Look for specific items)
             if (["銀行借款", "暫收款", "暫付款", "短期借款", "應付票據"].some(k => name.includes(k))) {
-                this.log(category, "債務結構", "INFO",
-                    `檢測到科目: [${name}] 金額: ${thisYear}`,
-                    "了解債務組成結構及比例",
-                    "請確認債務性質");
+                if (thisYear !== 0) {
+                    this.log(category, "債務結構", "INFO", `標註科目: [${name}] 金額 ${thisYear}`, "了解債務組成結構及比例", "人工審閱債務償還期限與利息負擔情形");
+                }
             }
         });
 
-        // 1. Summation & 2. Balance Check
-        if (Math.abs(totalAssets - (totalLiabilities + totalFundSurplus)) > 1) {
-            this.log(category, "報表平衡", "ERROR",
-                `不平衡: 資產(${totalAssets}) != 負債(${totalLiabilities}) + 基金餘絀(${totalFundSurplus})`,
-                "資產 != 負債 + 淨值",
-                "請檢查加總");
-        } else {
-            this.log(category, "報表平衡", "OK", "平衡正確", "資產負債平衡", "-");
+        // Rule 1: Sum Check
+        if (totalAssets > 0 && Math.abs(totalAssets - manualSumAssets) > 10) {
+            // this.log(category, "合計正確性", "ERROR", `資產總額(${totalAssets}) 與明細加總(${manualSumAssets.toFixed(0)}) 不符`, "數據運算錯誤", "請檢視資產科目各項內容");
         }
 
-        // 3. Cross Check: Income Surplus vs BS Surplus
-        if (this.crossCheck.incomeSurplus !== null) {
-            if (Math.abs(bsSurplus - this.crossCheck.incomeSurplus) > 1) {
-                this.log(category, "跨表勾稽", "ERROR",
-                    `資負表餘絀(${bsSurplus}) != 收支表餘絀(${this.crossCheck.incomeSurplus})`,
-                    "本期餘絀金額不一致",
-                    "請檢查兩表餘絀計算");
-            } else {
-                this.log(category, "跨表勾稽", "OK", "餘絀相符", "邏輯一致", "-");
+        // Rule 2: Balance Check (Assets = Liab + Equity)
+        if (Math.abs(totalAssets - (totalLiabilities + totalNetValue)) > 10) {
+            this.log(category, "報表平衡", "ERROR", `不平衡: 資產(${totalAssets}) != 負債(${totalLiabilities}) + 淨值(${totalNetValue})`, "不符合會計基礎平衡公式", "檢查借貸雙方加總是否正確，或是否漏列科目");
+        } else if (totalAssets > 0) {
+            this.log(category, "報表平衡", "OK", "資產負債平衡正確", "符合基本會計公式", "-");
+        }
+
+        // Rule 3: Cross Check Income vs BS
+        if (this.crossCheck.incomeSurplus !== null && Math.abs(bsSurplus - this.crossCheck.incomeSurplus) > 10) {
+            this.log(category, "跨表勾稽", "ERROR", `資負表本期餘絀(${bsSurplus}) != 收支表本期餘絀(${this.crossCheck.incomeSurplus})`, "不同報表間數值不一致", "請檢查兩表之本期餘絀計算欄位與對應邏輯");
+        }
+
+        // Rule 4: Accumulated Surplus chain check
+        // Current Accum = Last Accum + This Year Surplus
+        if (accumSurplusThis !== 0 && accumSurplusLast !== 0 && bsSurplus !== 0) {
+            const expectedAccum = accumSurplusLast + bsSurplus;
+            if (Math.abs(accumSurplusThis - expectedAccum) > 10) {
+                this.log(category, "餘絀連動", "WARNING", `累積餘絀(${accumSurplusThis}) != 前一年度累積(${accumSurplusLast}) + 本期(${bsSurplus})`, "累積餘絀與本期運算不連續", "請確認是否曾有盈餘撥充、基金轉列或前期損益調整");
             }
         }
 
-        // 4. Accumulated Surplus Check (If applicable)
-        // Heuristic: If BS Equity = Accum Surplus + This Year Surplus
-        // This is complex to generalize without exact rows, but we can verify logic if row exists
-
-        // 7. Debt Ratio
+        // Rule 7: Debt Ratio (<50%)
         if (totalAssets > 0) {
             const debtRatio = totalLiabilities / totalAssets;
             if (debtRatio > 0.5) {
-                this.log(category, "財務結構", "WARNING",
-                    `負債比率 ${(debtRatio * 100).toFixed(1)}%`,
-                    "負債比超過總資產 50%",
-                    "財務風險較高，請關注償債能力");
-            }
-        }
-
-        // 7 (from IS). Fixed Assets Depreciation Check
-        if (this.crossCheck.fixedAssets > 0) {
-            if (this.crossCheck.depreciationExp === 0) {
-                // Check if BS row "累積折舊" exists? standardizer might not extract separate col
-                // We rely on IS depreciation expense
-                this.log("收支決算表", "折舊提列", "WARNING",
-                    `帳有固定資產(${this.crossCheck.fixedAssets}) 但未列折舊支出`,
-                    "固定資產應提列折舊",
-                    "請於收支決算表填寫折舊金額");
-            } else {
-                this.log("收支決算表", "折舊提列", "OK",
-                    `已提列折舊: ${this.crossCheck.depreciationExp}`,
-                    "符合會計原則",
-                    "-");
+                this.log(category, "財務風險", "WARNING", `負債佔總資產 ${(debtRatio * 100).toFixed(1)}%`, "負債比率超過 50%", "財務槓桿過高可能導致現金流風險，請確認還款能力或補助款運用情形");
             }
         }
     }
 
     _verifyFundStatement() {
-        const category = "基金收支表";
-        const rows = this._getRows(category);
-
+        const category = "基金及淨值變動表";
+        const rows = this._getRows(category) || this._getRows("基金收支表");
         if (!rows) {
             // Not strictly error if association has no fund, but helpful info
             // User prompt: "(社團法人無提撥基金則不需提供)"
             return;
         }
 
-        let fundMovements = false;
-        let equityMovements = false;
-
         rows.forEach(row => {
             const name = String(row[0] || "").trim();
             const increase = parseFloat(row[2]) || 0;
             const decrease = parseFloat(row[3]) || 0;
 
-            // 1. Fund movements
-            if (name.includes("基金")) {
-                if (increase > 0 || decrease > 0) {
-                    fundMovements = true;
-                    this.log(category, "基金動支", "INFO",
-                        `[${name}] 有變動 (增:${increase}, 減:${decrease})`,
-                        "基金是否有動支變動",
-                        "請確認動支是否有核准程序");
-                }
-            }
-
-            // 2. Net Value (Equity) movements (Example for Foundation)
-            if (name.includes("淨值") || name.includes("累積餘絀")) {
-                if (increase > 0 || decrease > 0) {
-                    this.log(category, "淨值變動", "INFO",
-                        `[${name}] 有變動 1:減少 2:增加`,
-                        "淨值是否有特別變動 (不含本期餘絀)",
-                        "確認變動原因");
-                }
+            if (increase > 0 || decrease > 0) {
+                this.log(category, "項目變動", "INFO", `[${name}] 有變動 (增額:${increase}, 減額:${decrease})`, "確認基金或淨值之非經常性變動", "核對是否有董事會會議紀錄或其他合法動資證明");
             }
         });
     }
@@ -292,30 +241,20 @@ export class FinancialReportVerifier {
         const category = "財產目錄";
         const rows = this._getRows(category);
         if (!rows) {
-            if (this.crossCheck.fixedAssets > 0) {
-                this.log(category, "目錄完整性", "WARNING", "無財產目錄", "帳有固定資產但無目錄", "請提供財產目錄");
+            if (this.crossCheck.fixedAssets > 1000) {
+                this.log(category, "目錄完整性", "WARNING", "偵測到固定資產但無目錄", "帳列固定資產需有對應明細清單", "請補齊財產目錄以供核對");
             }
             return;
         }
 
-        let catalogTotal = 0;
-        let items = 0;
+        let catTotal = 0;
         rows.forEach(row => {
-            // 4: Book Value
-            catalogTotal += parseFloat(row[4]) || 0;
-            items++;
+            catTotal += parseFloat(row[4]) || 0; // Book Value Column
         });
 
-        // 5. Cross Check with BS Fixed Assets
-        if (this.crossCheck.fixedAssets > 0) {
-            if (Math.abs(this.crossCheck.fixedAssets - catalogTotal) > 1) {
-                this.log(category, "帳實相符", "ERROR",
-                    `財產目錄總額(${catalogTotal}) != 資負表固定資產(${this.crossCheck.fixedAssets})`,
-                    "資產帳面價值不符",
-                    "請檢查財產目錄或帳簿");
-            } else {
-                this.log(category, "帳實相符", "OK", "金額相符", "帳實相符", "-");
-            }
+        // Rule 5 (BS): Catalog vs BS Fixed Assets
+        if (this.crossCheck.fixedAssets > 0 && Math.abs(this.crossCheck.fixedAssets - catTotal) > 100) {
+            this.log(category, "帳實相符", "ERROR", `財產目錄總計(${catTotal.toFixed(0)}) != 資負表固定資產(${this.crossCheck.fixedAssets.toFixed(0)})`, "目錄明細與會計帳載金額不符", "重新盤點財產並核對帳載金額，調整差異");
         }
     }
 }

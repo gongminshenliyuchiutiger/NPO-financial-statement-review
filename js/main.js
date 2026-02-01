@@ -207,7 +207,7 @@ function downloadExcel() {
 
     // 2. Generate Verification Report Sheet
     if (lastResults && lastResults.length > 0) {
-        const reportHeaders = ["類別", "檢核規則", "狀態", "訊息", "異常意義", "修正建議"];
+        const reportHeaders = ["報表類別", "檢核規則", "檢核結果", "詳細訊息", "異常意義", "修正建議"];
         const reportData = [reportHeaders];
 
         lastResults.forEach(res => {
@@ -225,13 +225,13 @@ function downloadExcel() {
 
         // Add simple styling (width) info to cols
         reportWs['!cols'] = [
-            { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 50 }, { wch: 30 }, { wch: 30 }
+            { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 45 }, { wch: 35 }, { wch: 35 }
         ];
 
-        XLSX.utils.book_append_sheet(newWb, reportWs, "檢核報告結果");
+        XLSX.utils.book_append_sheet(newWb, reportWs, "稽核報告");
     }
 
-    XLSX.writeFile(newWb, "NPO_財務報表檢核報告_Pro.xlsx");
+    XLSX.writeFile(newWb, `NPO_財務報表稽核報告_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 // End of main.js
