@@ -2,13 +2,7 @@ import { ReportStandardizer } from './standardizer.js';
 import { FinancialReportVerifier } from './verifier.js';
 import { GeminiProcessor } from './gemini.js';
 
-// DOM Elements
-const fileInput = document.getElementById('fileInput');
-const dropZone = document.getElementById('dropZone');
-const verifyBtn = document.getElementById('verifyBtn'); // Hidden in new design? No, strictly logic flow check
-const loadingDiv = document.getElementById('loading');
-const resultsSection = document.getElementById('resultSection'); // Corrected ID
-const resultTableBody = document.getElementById('resultTableBody');
+// DOM Elements are now retrieved lazily inside functions to ensure they exist
 
 // State
 let selectedFile = null;
@@ -42,8 +36,7 @@ function setupModal() {
 }
 setupModal();
 
-// Event Listeners
-dropZone.addEventListener('click', () => fileInput.click());
+// Event Listeners (Remaining Drag-and-Drop)
 dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropZone.classList.add('dragover');
@@ -54,30 +47,33 @@ dropZone.addEventListener('drop', (e) => {
     dropZone.classList.remove('dragover');
     handleFileSelect(e.dataTransfer.files[0]);
 });
-fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
 
 let lastResults = []; // Store results for export functionality
 
-// Auto-trigger verification on file select -> REMOVED AUTO TRIGGER
-async function handleFileSelect(file) {
+// Expose handleFileSelect globally for index.html file pickers
+window.appHandleFileSelect = function (file) {
     if (!file) return;
     selectedFile = file;
-    // UI Feedback in Dropzone
-    dropZone.innerHTML = `<p style="font-weight:bold; color:var(--accent)">已選擇: ${file.name}</p>`;
-
-    // Enable the button, but DO NOT start automatically
-    verifyBtn.disabled = false;
-    resultsSection.style.display = 'none';
-}
+    console.log("Module received file:", file.name);
+    // UI feedback is now handled in index.html for speed
+};
 
 async function startVerification() {
-    if (!selectedFile) return;
+    if (!selectedFile) {
+        alert("請先選擇檔案");
+        return;
+    }
+
+    const vBtn = document.getElementById('verifyBtn');
+    const lDiv = document.getElementById('loading');
+    const rSec = document.getElementById('resultSection');
+    const rBody = document.getElementById('resultTableBody');
 
     // Reset UI
-    verifyBtn.disabled = true;
-    loadingDiv.style.display = 'block';
-    resultsSection.style.display = 'none';
-    resultTableBody.innerHTML = '';
+    if (vBtn) vBtn.disabled = true;
+    if (lDiv) lDiv.style.display = 'block';
+    if (rSec) rSec.style.display = 'none';
+    if (rBody) rBody.innerHTML = '';
     processedWorkbook = null;
     lastResults = [];
 
@@ -118,8 +114,8 @@ async function startVerification() {
         alert("錯誤: " + error.message);
         console.error(error);
     } finally {
-        loadingDiv.style.display = 'none';
-        verifyBtn.disabled = false;
+        if (lDiv) lDiv.style.display = 'none';
+        if (vBtn) vBtn.disabled = false;
     }
 }
 
@@ -137,12 +133,16 @@ function readExcelFile(file) {
 }
 
 function displayResults(results) {
-    resultTableBody.innerHTML = '';
+    const rBody = document.getElementById('resultTableBody');
+    const rSec = document.getElementById('resultSection');
+
+    if (!rBody) return;
+    rBody.innerHTML = '';
 
     if (results.length === 0) {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td colspan="6" style="text-align:center">無任何結果 (可能是格式不符或讀取失敗)</td>';
-        resultTableBody.appendChild(tr);
+        rBody.appendChild(tr);
     } else {
         results.forEach(res => {
             const tr = document.createElement('tr');
@@ -161,19 +161,30 @@ function displayResults(results) {
                 <td style="color: #ddd; font-size: 0.9em">${res.significance || '-'}</td>
                 <td style="color: var(--accent); font-size: 0.9em">${res.suggestion || '-'}</td>
             `;
-            resultTableBody.appendChild(tr);
+            rBody.appendChild(tr);
         });
     }
 
-    resultsSection.style.display = 'block';
-
-    // Smooth scroll
-    resultsSection.scrollIntoView({ behavior: 'smooth' });
+    if (rSec) {
+        rSec.style.display = 'block';
+        rSec.scrollIntoView({ behavior: 'smooth' });
+    }
 }
 
-export const main = {
-    downloadExcel
-}; // Export for inline script usage
+// Global exposure for non-module wrappers in index.html
+window.appStartVerification = startVerification;
+window.appDownloadExcel = downloadExcel;
+
+function downloadTemplate() {
+    // Path to the template file in the repository
+    const templateUrl = './NPO_財務報表檢核範本_v2.xlsx';
+    const link = document.createElement('a');
+    link.href = templateUrl;
+    link.download = 'NPO_財務報表檢核範本_v2.xlsx';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 function downloadExcel() {
     if (!processedWorkbook) return;
@@ -215,4 +226,20 @@ function downloadExcel() {
     }
 
     XLSX.writeFile(newWb, "NPO_財務報表檢核報告_Pro.xlsx");
+}
+
+// API Key Toggle Logic
+const togglePassword = document.getElementById('togglePassword');
+const apiKeyInput = document.getElementById('apiKey');
+
+if (togglePassword && apiKeyInput) {
+    togglePassword.addEventListener('click', function () {
+        // toggle the type attribute
+        const type = apiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
+        apiKeyInput.setAttribute('type', type);
+
+        // toggle the icon
+        this.classList.toggle('fa-eye');
+        this.classList.toggle('fa-eye-slash');
+    });
 }

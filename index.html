@@ -43,7 +43,12 @@
                     <a href="#" id="openHelpModal" onclick="openHelpModal(event)"
                         style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">(如何取得？)</a>
                 </div>
-                <input type="text" id="apiKey" placeholder="貼上您的 API Key................................">
+                <div class="password-wrapper" style="position: relative; display: flex; align-items: center;">
+                    <input type="password" id="apiKey" placeholder="貼上您的 API Key................................"
+                        style="padding-right: 40px; width: 100%;">
+                    <i class="fas fa-eye" id="togglePassword"
+                        style="position: absolute; right: 15px; cursor: pointer; color: var(--text-muted);"></i>
+                </div>
             </div>
             <p style="color: var(--text-muted); font-size: 0.9em;">
                 * 金鑰僅儲存在您的瀏覽器中，不會上傳至任何伺服器。
@@ -52,14 +57,20 @@
 
         <!-- Step 2: Upload -->
         <section class="card">
-            <h2>2. 上傳報表</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin-bottom: 0;">2. 上傳報表</h2>
+                <button class="btn-secondary" onclick="downloadTemplate()"
+                    style="font-size: 0.85rem; padding: 6px 12px;">
+                    <i class="fas fa-download"></i> 下載標準範本 (.xlsx)
+                </button>
+            </div>
             <div class="upload-area" id="dropZone">
                 <p>拖曳檔案至此或點擊上傳</p>
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg" hidden>
             </div>
 
             <div style="text-align: center; margin-top: 20px;">
-                <button id="verifyBtn" class="btn" disabled>開始智慧檢核</button>
+                <button id="verifyBtn" class="btn" onclick="startVerification()" disabled>開始智慧檢核</button>
             </div>
 
             <div id="loading" style="display: none; text-align: center; margin-top: 20px;">
@@ -221,7 +232,52 @@
         window.onload = function () {
             if (window.location.protocol === 'file:') {
                 console.warn("Running via file:// protocol. Modules might be blocked.");
-                // We could show a banner here, but let's just make sure the Modal works first.
+            }
+
+            // API Key Toggle Logic (Safe for file://)
+            const togglePassword = document.getElementById('togglePassword');
+            const apiKeyInput = document.getElementById('apiKey');
+            if (togglePassword && apiKeyInput) {
+                togglePassword.onclick = function () {
+                    const type = apiKeyInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                    apiKeyInput.setAttribute('type', type);
+                    this.classList.toggle('fa-eye');
+                    this.classList.toggle('fa-eye-slash');
+                };
+            }
+
+            // Dropzone & File Input Logic (Safe for file://)
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const verifyBtn = document.getElementById('verifyBtn');
+
+            function updateUIForFile(file) {
+                if (!file) return;
+                dropZone.innerHTML = `<p style="font-weight:bold; color:var(--accent); font-size:1.1rem;">已選擇：${file.name}</p><p style="font-size:0.8rem; color:var(--text-muted)">可點擊下方的「開始智慧檢核」</p>`;
+                if (verifyBtn) verifyBtn.disabled = false;
+
+                // Pass to module if ready
+                if (window.appHandleFileSelect) {
+                    window.appHandleFileSelect(file);
+                }
+            }
+
+            if (dropZone && fileInput) {
+                dropZone.onclick = function () { fileInput.click(); };
+
+                dropZone.ondragover = function (e) { e.preventDefault(); this.classList.add('dragover'); };
+                dropZone.ondragleave = function () { this.classList.remove('dragover'); };
+                dropZone.ondrop = function (e) {
+                    e.preventDefault();
+                    this.classList.remove('dragover');
+                    const file = e.dataTransfer.files[0];
+                    updateUIForFile(file);
+                };
+
+                fileInput.onchange = function (e) {
+                    const file = e.target.files[0];
+                    updateUIForFile(file);
+                };
             }
 
             // INDEPENDENT MASCOT DRAG LOGIC (Safe for file://)
@@ -266,14 +322,37 @@
                 });
             }
         }
+
+        // Module Wrappers & Global Functions
+        function startVerification() {
+            if (window.appStartVerification) {
+                window.appStartVerification();
+            } else {
+                alert("核心程式載入中，或瀏覽器封鎖了模組執行 (請確認是否直接按兩下打開 HTML，建議使用 GitHub Pages)");
+            }
+        }
+
+        function downloadTemplate() {
+            const templateUrl = './NPO_財務報表檢核範本_v2.xlsx';
+            const link = document.createElement('a');
+            link.href = templateUrl;
+            link.download = 'NPO_財務報表檢核範本_v2.xlsx';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function downloadExcel() {
+            if (window.appDownloadExcel) {
+                window.appDownloadExcel();
+            } else {
+                alert("報告下載功能尚未就緒。");
+            }
+        }
     </script>
 
     <!-- Application Logic -->
     <script type="module" src="js/main.js"></script>
-    <script type="module">
-        import { main } from './js/main.js';
-        window.downloadExcel = main.downloadExcel; 
-    </script>
 </body>
 
 </html>

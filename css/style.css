@@ -91,6 +91,7 @@ header h1 {
     font-weight: 700;
     background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
     letter-spacing: 2px;
 }
@@ -171,6 +172,7 @@ label {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="file"] {
     width: 100%;
     padding: 12px;
@@ -231,6 +233,30 @@ input[type="text"]:focus {
     cursor: not-allowed;
     transform: none;
     box-shadow: none;
+}
+
+.btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(5px);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--text-main);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    border-color: var(--accent);
+}
+
+#togglePassword:hover {
+    color: var(--accent) !important;
 }
 
 /* Results Table */
