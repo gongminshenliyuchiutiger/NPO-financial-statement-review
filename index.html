@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPO 財務報表檢核系統 (GitHub Pages版)</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- SheetJS for Excel processing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Google Generative AI SDK -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@google/generative-ai": "https://esm.run/@google/generative-ai"
+        }
+      }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>NPO 財務報表檢核系統</h1>
+            <p>純前端版本 - 資料在您瀏覽器中處理，不會上傳到伺服器</p>
+        </header>
+
+        <section class="control-panel">
+            <div class="card">
+                <h2>1. 設定 API Key (選填)</h2>
+                <div class="input-group">
+                    <label for="apiKey">Gemini API Key</label>
+                    <input type="password" id="apiKey" placeholder="若需辨識圖片/PDF請輸入 Key">
+                    <p class="hint">如果不輸入，僅支援標準 Excel 檔檢核。</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>2. 上傳財報</h2>
+                <div class="upload-area" id="dropZone">
+                    <p>拖曳檔案到此處 或 點擊上傳</p>
+                    <input type="file" id="fileInput" accept=".xlsx, .xlsm, .pdf, .jpg, .png, .jpeg">
+                </div>
+                <div id="fileInfo" class="hidden">已選擇: <span id="fileName"></span></div>
+            </div>
+
+            <div class="card action-card">
+                <button id="verifyBtn" disabled>開始檢核</button>
+                <div id="loading" class="hidden">
+                    <div class="spinner"></div>
+                    <span id="statusText">處理中...</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="resultsSection" class="hidden">
+            <h2>檢核結果</h2>
+            
+            <div class="summary-box">
+                <div class="score-card">
+                    <span class="label">檢核項目</span>
+                    <span class="value" id="totalChecks">0</span>
+                </div>
+                <div class="score-card error">
+                    <span class="label">異常 (Error)</span>
+                    <span class="value" id="errorCount">0</span>
+                </div>
+                <div class="score-card warning">
+                    <span class="label">警示 (Warning)</span>
+                    <span class="value" id="warningCount">0</span>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button id="downloadBtn" class="secondary-btn">下載標準化財報 (Excel)</button>
+            </div>
+
+            <div class="table-container">
+                <table id="resultTable">
+                    <thead>
+                        <tr>
+                            <th>狀態</th>
+                            <th>類別</th>
+                            <th>檢查項目</th>
+                            <th>說明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Results will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Application Logic -->
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
