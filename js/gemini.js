@@ -19,6 +19,7 @@ export class GeminiProcessor {
         1. 收支決算表 (Income Statement): 包含科目名稱(item)、上年度決算數(last_year)、本年度預算數(budget)、本年度決算數(this_year)
         2. 資產負債表 (Balance Sheet): 包含科目名稱(item)、上年度金額(last_year)、本年度金額(this_year)
         3. 財產目錄 (Property Catalog): 包含資產名稱(item_name)、取得日期(date)、取得成本(cost)、本期折舊(depreciation)、帳面價值(book_value)
+        4. 基金收支表或淨值變動表 (Fund Statement): 包含科目名稱(item)、期初餘額(begin_balance)、本期增加(increase)、本期減少(decrease)、期末餘額(end_balance)
 
         請務必返回純 JSON 格式，不要有 Markdown 標記（如 \`\`\`json ... \`\`\`）。結構如下：
         {
@@ -33,10 +34,14 @@ export class GeminiProcessor {
             "property_catalog": [
                 {"item_name": "電腦", "date": "2023-01-01", "cost": 30000, "depreciation": 10000, "book_value": 20000},
                 ...
+            ],
+            "fund_statement": [
+                {"item": "基金", "begin_balance": 100, "increase": 10, "decrease": 0, "end_balance": 110},
+                ...
             ]
         }
         
-        如果文件中缺某些欄位（例如沒有預算數），請填 0 或 null。請自動識別並對應到最接近的標準科目名稱。
+        如果文件中缺某些欄位（例如沒有預算數），請填 0 或 null。請自動識別並對應到最接近的標準科目名稱。若是淨值變動表，請將其對應至 "fund_statement" 結構。
         `;
 
         // 3. Generate Content
@@ -133,6 +138,22 @@ export class GeminiProcessor {
             });
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             XLSX.utils.book_append_sheet(wb, ws, "財產目錄");
+        }
+
+        // 4. Fund Statement
+        if (data.fund_statement) {
+            const wsData = [["科目名稱", "期初餘額", "本期增加", "本期減少", "期末餘額"]];
+            data.fund_statement.forEach(row => {
+                wsData.push([
+                    row.item || "",
+                    row.begin_balance || 0,
+                    row.increase || 0,
+                    row.decrease || 0,
+                    row.end_balance || 0
+                ]);
+            });
+            const ws = XLSX.utils.aoa_to_sheet(wsData);
+            XLSX.utils.book_append_sheet(wb, ws, "基金收支表");
         }
 
         return wb;

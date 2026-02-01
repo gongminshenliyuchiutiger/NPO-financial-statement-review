@@ -55,6 +55,7 @@ dropZone.addEventListener('drop', (e) => {
     handleFileSelect(e.dataTransfer.files[0]);
 });
 fileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+verifyBtn.addEventListener('click', startVerification);
 
 let lastResults = []; // Store results for export functionality
 
@@ -172,8 +173,53 @@ function displayResults(results) {
 }
 
 export const main = {
-    downloadExcel
-}; // Export for inline script usage
+    downloadExcel,
+    downloadEmptyTemplate
+};
+
+function downloadEmptyTemplate() {
+    const wb = XLSX.utils.book_new();
+
+    // 1. 收支決算表
+    const ws1Data = [
+        ["科目名稱", "上年度決算數", "本年度預算數", "本年度決算數"],
+        ["收入總額", 0, 0, 0],
+        ["支出總額", 0, 0, 0],
+        ["本期餘絀", 0, 0, 0]
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(ws1Data);
+    XLSX.utils.book_append_sheet(wb, ws1, "收支決算表");
+
+    // 2. 資產負債表
+    const ws2Data = [
+        ["科目名稱", "上年度金額", "本年度金額"],
+        ["資產總額", 0, 0],
+        ["負債總額", 0, 0],
+        ["基金及餘絀總額", 0, 0],
+        ["本期餘絀", 0, 0],
+        ["累積餘絀", 0, 0]
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(ws2Data);
+    XLSX.utils.book_append_sheet(wb, ws2, "資產負債表");
+
+    // 3. 基金收支表
+    const ws3Data = [
+        ["科目名稱", "期初餘額", "本期增加", "本期減少", "期末餘額"],
+        ["基金", 0, 0, 0, 0]
+    ];
+    const ws3 = XLSX.utils.aoa_to_sheet(ws3Data);
+    XLSX.utils.book_append_sheet(wb, ws3, "基金收支表");
+
+    // 4. 財產目錄
+    const ws4Data = [
+        ["資產名稱", "取得日期", "取得成本", "本期折舊", "帳面價值"],
+        ["範例設備", "2023-01-01", 10000, 1000, 9000]
+    ];
+    const ws4 = XLSX.utils.aoa_to_sheet(ws4Data);
+    XLSX.utils.book_append_sheet(wb, ws4, "財產目錄");
+
+    XLSX.writeFile(wb, "NPO_財務報表檢核範本_v3.xlsx");
+}
 
 function downloadExcel() {
     if (!processedWorkbook) return;
