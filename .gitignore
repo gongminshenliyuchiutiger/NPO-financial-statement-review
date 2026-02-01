@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Flask
+instance/
+.webassets-cache
+
+# Distribution / Packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Data & Uploads
+uploads/
+年度報告_財務報告/
+verification_report.txt
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
