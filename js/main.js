@@ -85,6 +85,8 @@ async function startVerification() {
 
     try {
         const apiKey = document.getElementById('apiKey').value.trim();
+        const modelSelect = document.getElementById('apiModel');
+        const modelName = modelSelect ? modelSelect.value : 'gemini-2.5-flash';
         let workbook;
 
         // Path 1: Gemini Processing
@@ -92,10 +94,10 @@ async function startVerification() {
             // If API key is present AND file is NOT excel, use Gemini
             // Or if user wants to use Gemini for Excel? Usually Gemini is for PDF/Image
             // Logic: If PDF/Image -> Gemini. If Excel -> Local (unless user forces? lets keep simple)
-            const processor = new GeminiProcessor(apiKey);
+            const processor = new GeminiProcessor(apiKey, modelName);
             workbook = await processor.processFile(selectedFile);
         } else if (apiKey && selectedFile.name.match(/\.(pdf|png|jpg|jpeg)$/i)) {
-            const processor = new GeminiProcessor(apiKey);
+            const processor = new GeminiProcessor(apiKey, modelName);
             workbook = await processor.processFile(selectedFile);
         }
         else {
